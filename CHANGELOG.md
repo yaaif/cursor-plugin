@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.0
+
+- `yaaif_doctor` + `/yaaif-doctor` end-to-end connectivity checks
+- Fix `yaaif_skill_get` via catalog `?ids=`
+- TLS: extra CA / client mTLS via profile or `YAAIF_EXTRA_CA_FILE`
+- `yaaif_platform_export` shell + Cursor variable JSON
+- Plan execution save/update/resume for mid-run recovery
+- Ambient run pause/resume/approve/reject/stop + approval inbox decide
+- Client-side `agent_type` filter on agent list
+- Device-code login (`yaaif_login_device`) + Keycloak device grant enablement
+- Opt-in local telemetry counters; secret redaction helpers
+- Marketplace submit checklist; SECURITY session hardening notes
+
 ## 0.5.0
 
 - Platform profiles: `hosted` / `local-hybrid` / `local` + custom save (`yaaif_platform_*`)

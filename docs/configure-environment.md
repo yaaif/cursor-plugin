@@ -48,6 +48,25 @@ export YAAIF_DEFAULT_TENANT_ID=<tenant-uuid>   # optional
 
 Ensure Keycloak has client `yaaif-cursor` (realm import or `ensure-yaaif-cursor-client.sh`).
 
+## TLS / corporate CA / mTLS
+
+Local Traefik and enterprise proxies often need an extra CA:
+
+```bash
+export YAAIF_EXTRA_CA_FILE=/path/to/corp-or-traefik-ca.pem
+# optional client mTLS:
+export YAAIF_CLIENT_CERT_FILE=/path/to/client.crt.pem
+export YAAIF_CLIENT_KEY_FILE=/path/to/client.key.pem
+```
+
+Or set `extra_ca_file` / `client_cert_file` / `client_key_file` on a custom profile via `yaaif_platform_save`. The bridge applies these to HTTPS requests at startup (and after `yaaif_platform_use`).
+
+`NODE_EXTRA_CA_CERTS` is also honored when `YAAIF_EXTRA_CA_FILE` is unset.
+
+## Export for shells / Cursor variables
+
+After `yaaif_platform_use`, call `yaaif_platform_export` for ready-to-paste `export …` lines and a Cursor plugin variables JSON map.
+
 ## Validation
 
-Call `yaaif_configure_check` or `yaaif_ensure_session`. Expect OIDC discovery OK, issuer match, and a selected tenant.
+Call `yaaif_doctor` or `yaaif_ensure_session`. Expect OIDC discovery OK, issuer match, and a selected tenant.

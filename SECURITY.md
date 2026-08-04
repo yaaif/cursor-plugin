@@ -4,8 +4,9 @@
 
 | Version | Supported |
 |---------|-----------|
-| `0.2.x` | Yes |
-| `< 0.2` | Best-effort |
+| `0.6.x` | Yes |
+| `0.5.x` | Yes |
+| `< 0.5` | Best-effort |
 
 ## Threat model (summary)
 
@@ -19,9 +20,14 @@ It does **not** ship opaque binaries, remote install scripts, or embedded creden
 ### Auth
 
 - Uses Keycloak OIDC authorization code + PKCE (S256) with a loopback redirect (`http://127.0.0.1:<ephemeral>/callback`)
+- Optional device-code login for headless/CI (`yaaif_login_device`) when enabled on the Keycloak client
 - Tokens are stored at `~/.yaaif/cursor/session.json` with mode `0600`
+- Session also records `profile_id` + `oidc_authority` (issuer mismatch forces re-login)
 - API calls send `Authorization: Bearer` + `X-Tenant-ID` only
 - Does **not** use platform S2S secrets, desktop connection keys, or AI-gateway keys
+- Tool diagnostics use `redactSecrets` so access/refresh tokens are not echoed
+- Optional local telemetry (`telemetry.json`) is **opt-in**, counters only, never uploaded
+- Shared machines: delete `~/.yaaif/cursor/session.json` after use; prefer per-user home directories
 
 ### MCP surface
 

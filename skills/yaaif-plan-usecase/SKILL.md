@@ -23,8 +23,10 @@ Task Progress:
 - [ ] 3. Decompose (chat / ambient / desktop / MCP / agents)
 - [ ] 4. Write plan file + stop for approval
 - [ ] 5. Optional dry-run (yaaif_plan_dry_run)
-- [ ] 6. Execute (MCP → agents → approvals → ambient → skills → map → desktop)
-- [ ] 7. Verify (yaaif_plan_verify) + hand off
+- [ ] 6. Save execution checklist (yaaif_plan_execution_save)
+- [ ] 7. Execute (MCP → agents → approvals → ambient → skills → map → desktop)
+- [ ] 8. On failure: yaaif_plan_execution_resume and continue
+- [ ] 9. Verify (yaaif_plan_verify) + hand off
 ```
 
 ## Prerequisites
@@ -105,6 +107,12 @@ with `actions` (+ `verify_catalog: true` and `expected` names from the plan).
 Show the dry-run result; wait again for execute approval if not already granted.
 
 ## Phase B — Execute (only after approval)
+
+Before mutating, call `yaaif_plan_execution_save` with the ordered steps (status
+`pending`). After each successful/failed step call
+`yaaif_plan_execution_update_step`. If interrupted, call
+`yaaif_plan_execution_resume` and continue from `next_step` using
+`collected_ids` — do not recreate completed agents/skills/workflows.
 
 Follow this order. Skip steps the plan marks as reuse / not needed.
 

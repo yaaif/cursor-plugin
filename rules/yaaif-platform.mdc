@@ -7,7 +7,7 @@ alwaysApply: true
 
 When the user asks to work with YAAIF (skills, MCP tools/deployments, ambient workflows):
 
-1. Ensure session first: prefer `yaaif_ensure_session` (`login_if_needed: true`, optional `profile_id` / `tenant`). Use `yaaif_platform_use` for hosted/local-hybrid/local. Set tenant by name/slug/uuid via `yaaif_set_tenant`. Confirm with `yaaif_whoami`.
+1. Ensure session first: prefer `yaaif_doctor` or `yaaif_ensure_session` (`login_if_needed: true`, optional `profile_id` / `tenant`). Use `yaaif_platform_use` for hosted/local-hybrid/local. Set tenant by name/slug/uuid via `yaaif_set_tenant`. Confirm with `yaaif_whoami`.
 2. Prefer the `yaaif-*` MCP bridge tools for platform mutations. Do not invent REST paths or tool catalog names.
 3. This plugin works without the yaaif-platform monorepo — write packs in the user workspace and load via bridge tools.
 4. For multi-capability use cases (chat + ambient + desktop, or unclear split), start with `yaaif-plan-usecase` / `/yaaif-plan`: write a plan, wait for approval, then execute. Do not jump straight to a single create skill.

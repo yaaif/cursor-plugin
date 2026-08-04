@@ -3538,7 +3538,7 @@ var require_schemes = __commonJS({
       urnComponent.nss = (uuidComponent.uuid || "").toLowerCase();
       return urnComponent;
     }
-    var http = (
+    var http2 = (
       /** @type {SchemeHandler} */
       {
         scheme: "http",
@@ -3547,11 +3547,11 @@ var require_schemes = __commonJS({
         serialize: httpSerialize
       }
     );
-    var https = (
+    var https2 = (
       /** @type {SchemeHandler} */
       {
         scheme: "https",
-        domainHost: http.domainHost,
+        domainHost: http2.domainHost,
         parse: httpParse,
         serialize: httpSerialize
       }
@@ -3595,8 +3595,8 @@ var require_schemes = __commonJS({
     var SCHEMES = (
       /** @type {Record<SchemeName, SchemeHandler>} */
       {
-        http,
-        https,
+        http: http2,
+        https: https2,
         ws,
         wss,
         urn,
@@ -21666,6 +21666,84 @@ defineLazyProperty(apps, "browser", () => "browser");
 defineLazyProperty(apps, "browserPrivate", () => "browserPrivate");
 var open_default = open;
 
+// src/client/tls.ts
+import { readFileSync } from "node:fs";
+import http from "node:http";
+import https from "node:https";
+import tls from "node:tls";
+var material = {};
+function readOptional(path2) {
+  const p = (path2 || "").trim();
+  if (!p) return void 0;
+  return readFileSync(p, "utf8");
+}
+function installTlsDispatcher(cfg) {
+  const caFile = cfg.extraCaFile || process.env.YAAIF_EXTRA_CA_FILE || process.env.NODE_EXTRA_CA_CERTS;
+  const certFile = cfg.clientCertFile || process.env.YAAIF_CLIENT_CERT_FILE;
+  const keyFile = cfg.clientKeyFile || process.env.YAAIF_CLIENT_KEY_FILE;
+  const caPem = readOptional(caFile);
+  const certPem = readOptional(certFile);
+  const keyPem = readOptional(keyFile);
+  if (!caPem && !certPem) {
+    material = {};
+    return null;
+  }
+  material = {
+    ca: caPem ? [...tls.rootCertificates, caPem] : void 0,
+    cert: certPem && keyPem ? certPem : void 0,
+    key: certPem && keyPem ? keyPem : void 0
+  };
+  return material;
+}
+function getTlsMaterial() {
+  return material;
+}
+async function yaaifFetch(input, init = {}) {
+  const url = typeof input === "string" ? new URL(input) : input;
+  const isHttps = url.protocol === "https:";
+  const headers = new Headers(init.headers);
+  const method = (init.method || "GET").toUpperCase();
+  let body;
+  if (init.body != null) {
+    body = typeof init.body === "string" || Buffer.isBuffer(init.body) ? init.body : String(init.body);
+  }
+  const tlsOpts = getTlsMaterial();
+  const agent = isHttps ? new https.Agent({
+    ...tlsOpts.ca ? { ca: tlsOpts.ca } : {},
+    ...tlsOpts.cert && tlsOpts.key ? { cert: tlsOpts.cert, key: tlsOpts.key } : {}
+  }) : new http.Agent();
+  return new Promise((resolve, reject) => {
+    const reqFn = isHttps ? https.request : http.request;
+    const req = reqFn(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port || (isHttps ? 443 : 80),
+        path: `${url.pathname}${url.search}`,
+        method,
+        headers: Object.fromEntries(headers.entries()),
+        agent
+      },
+      (res) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+        res.on("end", () => {
+          const buf = Buffer.concat(chunks);
+          const rh = new Headers();
+          for (const [k, v] of Object.entries(res.headers)) {
+            if (v == null) continue;
+            rh.set(k, Array.isArray(v) ? v.join(", ") : String(v));
+          }
+          resolve(new Response(buf, { status: res.statusCode ?? 0, headers: rh }));
+        });
+      }
+    );
+    req.on("error", reject);
+    if (body != null) req.write(body);
+    req.end();
+  });
+}
+
 // src/auth/oidc.ts
 var ReauthRequiredError = class extends Error {
   code = "reauth_required";
@@ -21800,7 +21878,7 @@ var AuthClient = class {
       client_id: this.cfg.oidcClientId,
       code_verifier: verifier
     });
-    const tokenRes = await fetch(`${this.cfg.oidcAuthority}/protocol/openid-connect/token`, {
+    const tokenRes = await yaaifFetch(`${this.cfg.oidcAuthority}/protocol/openid-connect/token`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body
@@ -21809,6 +21887,70 @@ var AuthClient = class {
     if (!tokenRes.ok) {
       throw new Error(`token exchange failed (${tokenRes.status}): ${JSON.stringify(raw)}`);
     }
+    const session = await this.persistTokens(raw);
+    return { session, auth_url: authUrlStr };
+  }
+  /**
+   * OAuth 2.0 device authorization grant (headless / CI).
+   * Requires Keycloak client attribute oauth2.device.authorization.grant.enabled=true.
+   */
+  async deviceLogin(opts = {}) {
+    await this.store.ensureHome(this.cfg.cursorHome);
+    const deviceEndpoint = `${this.cfg.oidcAuthority}/protocol/openid-connect/auth/device`;
+    const startBody = new URLSearchParams({
+      client_id: this.cfg.oidcClientId,
+      scope: this.cfg.oidcScopes.join(" ")
+    });
+    const startRes = await yaaifFetch(deviceEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: startBody
+    });
+    const startRaw = await startRes.json();
+    if (!startRes.ok) {
+      throw new Error(
+        `device auth start failed (${startRes.status}): ${JSON.stringify(startRaw)}. Enable oauth2.device.authorization.grant.enabled on the yaaif-cursor Keycloak client.`
+      );
+    }
+    const deviceCode = String(startRaw.device_code ?? "");
+    const userCode = String(startRaw.user_code ?? "");
+    const verificationUri = String(
+      startRaw.verification_uri_complete ?? startRaw.verification_uri ?? ""
+    );
+    const intervalSec = typeof startRaw.interval === "number" ? startRaw.interval : 5;
+    const timeoutMs = opts.timeout_ms ?? 5 * 60 * 1e3;
+    const deadline = Date.now() + timeoutMs;
+    if (verificationUri) {
+      void open_default(verificationUri).catch(() => {
+        console.error(`Complete device login at: ${verificationUri} code=${userCode}`);
+      });
+    }
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, Math.max(intervalSec, 2) * 1e3));
+      const pollBody = new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+        device_code: deviceCode,
+        client_id: this.cfg.oidcClientId
+      });
+      const tokenRes = await yaaifFetch(`${this.cfg.oidcAuthority}/protocol/openid-connect/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: pollBody
+      });
+      const raw = await tokenRes.json();
+      if (tokenRes.ok && raw.access_token) {
+        const session = await this.persistTokens(raw);
+        return { session, verification_uri: verificationUri, user_code: userCode };
+      }
+      const err = String(raw.error ?? "");
+      if (err === "authorization_pending" || err === "slow_down") continue;
+      throw new Error(`device auth poll failed: ${JSON.stringify(raw)}`);
+    }
+    throw new Error(
+      `device login timed out. Open ${verificationUri} and enter code ${userCode}`
+    );
+  }
+  async persistTokens(raw) {
     const tokens = tokenSetFromJson(raw);
     const claims = tokens.id_token ? parseIdToken(tokens.id_token) : {};
     const session = {
@@ -21821,7 +21963,7 @@ var AuthClient = class {
       oidc_authority: this.cfg.oidcAuthority
     };
     await this.store.save(session);
-    return { session, auth_url: authUrlStr };
+    return session;
   }
   async logout(opts = {}) {
     const sess = await this.store.load();
@@ -21875,7 +22017,7 @@ var AuthClient = class {
       refresh_token: sess.tokens.refresh_token ?? "",
       client_id: this.cfg.oidcClientId
     });
-    const tokenRes = await fetch(`${authority}/protocol/openid-connect/token`, {
+    const tokenRes = await yaaifFetch(`${authority}/protocol/openid-connect/token`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body
@@ -21979,7 +22121,7 @@ var ApiClient = class {
       headers["Content-Type"] = "application/json";
       payload = JSON.stringify(body);
     }
-    const res = await fetch(`${base}${path2.startsWith("/") ? path2 : `/${path2}`}`, {
+    const res = await yaaifFetch(`${base}${path2.startsWith("/") ? path2 : `/${path2}`}`, {
       method,
       headers,
       body: payload
@@ -22019,13 +22161,139 @@ function loadConfig() {
     approvalBaseUrl: trimSlash(env("YAAIF_APPROVAL_BASE_URL", `${apiBaseUrl}/approval-service`)),
     defaultTenantId: env("YAAIF_DEFAULT_TENANT_ID"),
     cursorHome: env("YAAIF_CURSOR_HOME", join2(homedir(), ".yaaif", "cursor")),
-    activeProfileId: env("YAAIF_PLATFORM_PROFILE", "")
+    activeProfileId: env("YAAIF_PLATFORM_PROFILE", ""),
+    extraCaFile: env("YAAIF_EXTRA_CA_FILE", env("NODE_EXTRA_CA_CERTS")),
+    clientCertFile: env("YAAIF_CLIENT_CERT_FILE"),
+    clientKeyFile: env("YAAIF_CLIENT_KEY_FILE")
   };
 }
 
-// src/platform/profiles.ts
-import { mkdir as mkdir2, readFile as readFile2, rename as rename2, writeFile as writeFile2 } from "node:fs/promises";
+// src/lib/planExecution.ts
+import { mkdir as mkdir2, readFile as readFile2, rename as rename2, readdir, writeFile as writeFile2 } from "node:fs/promises";
 import { join as join3 } from "node:path";
+var PlanExecutionStore = class {
+  dir;
+  constructor(cursorHome) {
+    this.dir = join3(cursorHome, "plan-executions");
+  }
+  file(slug) {
+    const safe = slug.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-");
+    return join3(this.dir, `${safe}.json`);
+  }
+  async save(exec) {
+    await mkdir2(this.dir, { recursive: true, mode: 448 });
+    const next = { ...exec, updated_at: (/* @__PURE__ */ new Date()).toISOString() };
+    const path2 = this.file(exec.slug);
+    const tmp = `${path2}.tmp`;
+    await writeFile2(tmp, JSON.stringify(next, null, 2), { mode: 384 });
+    await rename2(tmp, path2);
+    return next;
+  }
+  async get(slug) {
+    try {
+      return JSON.parse(await readFile2(this.file(slug), "utf8"));
+    } catch (err) {
+      if (err.code === "ENOENT") return null;
+      throw err;
+    }
+  }
+  async list() {
+    try {
+      const names = await readdir(this.dir);
+      const out = [];
+      for (const name of names) {
+        if (!name.endsWith(".json")) continue;
+        const exec = await this.get(name.replace(/\.json$/, ""));
+        if (!exec) continue;
+        out.push({
+          slug: exec.slug,
+          updated_at: exec.updated_at,
+          pending: exec.steps.filter((s) => s.status === "pending").length,
+          failed: exec.steps.filter((s) => s.status === "failed").length
+        });
+      }
+      return out.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+    } catch (err) {
+      if (err.code === "ENOENT") return [];
+      throw err;
+    }
+  }
+  resumeHint(exec) {
+    const next = exec.steps.find((s) => s.status === "pending" || s.status === "failed");
+    const done = exec.steps.filter((s) => s.status === "done" || s.status === "skipped");
+    return {
+      complete: !next,
+      next_step: next ?? null,
+      remaining: exec.steps.filter((s) => s.status === "pending" || s.status === "failed"),
+      completed_count: done.length,
+      total: exec.steps.length,
+      collected_ids: Object.assign({}, ...done.map((s) => s.result_ids ?? {}))
+    };
+  }
+};
+
+// src/lib/telemetry.ts
+import { mkdir as mkdir3, readFile as readFile3, rename as rename3, writeFile as writeFile3 } from "node:fs/promises";
+import { join as join4 } from "node:path";
+var TelemetryStore = class {
+  constructor(cursorHome) {
+    this.cursorHome = cursorHome;
+    this.path = join4(cursorHome, "telemetry.json");
+  }
+  path;
+  async load() {
+    try {
+      const raw = JSON.parse(await readFile3(this.path, "utf8"));
+      return {
+        enabled: Boolean(raw.enabled),
+        counters: raw.counters && typeof raw.counters === "object" ? raw.counters : {},
+        updated_at: raw.updated_at
+      };
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        return { enabled: false, counters: {} };
+      }
+      throw err;
+    }
+  }
+  async save(state) {
+    await mkdir3(this.cursorHome, { recursive: true, mode: 448 });
+    const next = { ...state, updated_at: (/* @__PURE__ */ new Date()).toISOString() };
+    const tmp = `${this.path}.tmp`;
+    await writeFile3(tmp, JSON.stringify(next, null, 2), { mode: 384 });
+    await rename3(tmp, this.path);
+  }
+  async setEnabled(enabled) {
+    const cur = await this.load();
+    cur.enabled = enabled;
+    await this.save(cur);
+    return cur;
+  }
+  async increment(name, by = 1) {
+    const cur = await this.load();
+    if (!cur.enabled) return;
+    cur.counters[name] = (cur.counters[name] ?? 0) + by;
+    await this.save(cur);
+  }
+};
+function redactSecrets(value) {
+  if (Array.isArray(value)) return value.map(redactSecrets);
+  if (!value || typeof value !== "object") return value;
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    const key = k.toLowerCase();
+    if (key.includes("token") || key.includes("secret") || key.includes("password") || key.includes("authorization") || key.includes("refresh") || key === "id_token" || key === "access_token") {
+      out[k] = typeof v === "string" && v ? "[redacted]" : v;
+    } else {
+      out[k] = redactSecrets(v);
+    }
+  }
+  return out;
+}
+
+// src/platform/profiles.ts
+import { mkdir as mkdir4, readFile as readFile4, rename as rename4, writeFile as writeFile4 } from "node:fs/promises";
+import { join as join5 } from "node:path";
 function trimSlash2(v) {
   return v.replace(/\/+$/, "");
 }
@@ -22070,17 +22338,17 @@ var BUILTIN_PROFILES = [
 var ProfileStore = class {
   constructor(cursorHome) {
     this.cursorHome = cursorHome;
-    this.customPath = join3(cursorHome, "profiles.json");
-    this.activePath = join3(cursorHome, "active-profile.json");
+    this.customPath = join5(cursorHome, "profiles.json");
+    this.activePath = join5(cursorHome, "active-profile.json");
   }
   customPath;
   activePath;
   async ensureHome() {
-    await mkdir2(this.cursorHome, { recursive: true, mode: 448 });
+    await mkdir4(this.cursorHome, { recursive: true, mode: 448 });
   }
   async listCustom() {
     try {
-      const raw = JSON.parse(await readFile2(this.customPath, "utf8"));
+      const raw = JSON.parse(await readFile4(this.customPath, "utf8"));
       return Array.isArray(raw.profiles) ? raw.profiles.filter((p) => p?.id && p.api_base_url) : [];
     } catch (err) {
       if (err.code === "ENOENT") return [];
@@ -22090,8 +22358,8 @@ var ProfileStore = class {
   async saveCustom(profiles) {
     await this.ensureHome();
     const tmp = `${this.customPath}.tmp`;
-    await writeFile2(tmp, JSON.stringify({ profiles }, null, 2), { mode: 384 });
-    await rename2(tmp, this.customPath);
+    await writeFile4(tmp, JSON.stringify({ profiles }, null, 2), { mode: 384 });
+    await rename4(tmp, this.customPath);
   }
   async upsertCustom(profile) {
     const id = profile.id.trim().toLowerCase();
@@ -22112,7 +22380,10 @@ var ProfileStore = class {
       approval_base_url: trimSlash2(
         profile.approval_base_url || `${trimSlash2(profile.api_base_url)}/approval-service`
       ),
-      oidc_client_id: profile.oidc_client_id || "yaaif-cursor"
+      oidc_client_id: profile.oidc_client_id || "yaaif-cursor",
+      extra_ca_file: profile.extra_ca_file?.trim() || void 0,
+      client_cert_file: profile.client_cert_file?.trim() || void 0,
+      client_key_file: profile.client_key_file?.trim() || void 0
     };
     const existing = await this.listCustom();
     const next = [...existing.filter((p) => p.id !== id), cleaned];
@@ -22136,7 +22407,7 @@ var ProfileStore = class {
   }
   async getActive() {
     try {
-      return JSON.parse(await readFile2(this.activePath, "utf8"));
+      return JSON.parse(await readFile4(this.activePath, "utf8"));
     } catch (err) {
       if (err.code === "ENOENT") return null;
       throw err;
@@ -22148,8 +22419,8 @@ var ProfileStore = class {
     if (!profile) throw new Error(`unknown profile: ${profileId}`);
     const state = { profile_id: profile.id, updated_at: (/* @__PURE__ */ new Date()).toISOString() };
     const tmp = `${this.activePath}.tmp`;
-    await writeFile2(tmp, JSON.stringify(state, null, 2), { mode: 384 });
-    await rename2(tmp, this.activePath);
+    await writeFile4(tmp, JSON.stringify(state, null, 2), { mode: 384 });
+    await rename4(tmp, this.activePath);
     return state;
   }
 };
@@ -22161,6 +22432,9 @@ function applyProfileToConfig(cfg, profile) {
   cfg.approvalBaseUrl = trimSlash2(profile.approval_base_url);
   if (profile.oidc_client_id) cfg.oidcClientId = profile.oidc_client_id;
   cfg.activeProfileId = profile.id;
+  if (profile.extra_ca_file) cfg.extraCaFile = profile.extra_ca_file;
+  if (profile.client_cert_file) cfg.clientCertFile = profile.client_cert_file;
+  if (profile.client_key_file) cfg.clientKeyFile = profile.client_key_file;
   return cfg;
 }
 function inferProfileId(cfg) {
@@ -22212,6 +22486,29 @@ function mergeSkillIds(existing, add) {
     out.push(trimmed);
   }
   return out;
+}
+
+// src/lib/profileExport.ts
+function exportProfileEnv(cfg) {
+  const vars = {
+    YAAIF_PLATFORM_PROFILE: cfg.activeProfileId || "",
+    YAAIF_OIDC_AUTHORITY: cfg.oidcAuthority,
+    YAAIF_OIDC_CLIENT_ID: cfg.oidcClientId,
+    YAAIF_API_BASE_URL: cfg.apiBaseUrl,
+    YAAIF_AGENT_BASE_URL: cfg.agentBaseUrl,
+    YAAIF_CONTROL_PLANE_BASE_URL: cfg.controlPlaneBaseUrl,
+    YAAIF_APPROVAL_BASE_URL: cfg.approvalBaseUrl
+  };
+  if (cfg.defaultTenantId) vars.YAAIF_DEFAULT_TENANT_ID = cfg.defaultTenantId;
+  if (cfg.extraCaFile) vars.YAAIF_EXTRA_CA_FILE = cfg.extraCaFile;
+  if (cfg.clientCertFile) vars.YAAIF_CLIENT_CERT_FILE = cfg.clientCertFile;
+  if (cfg.clientKeyFile) vars.YAAIF_CLIENT_KEY_FILE = cfg.clientKeyFile;
+  const shell = Object.entries(vars).filter(([, v]) => v).map(([k, v]) => `export ${k}=${shellQuote(v)}`).join("\n");
+  return { shell, cursor_plugin_variables: vars };
+}
+function shellQuote(v) {
+  if (/^[A-Za-z0-9_./:@%-]+$/.test(v)) return v;
+  return `'${v.replace(/'/g, `'\\''`)}'`;
 }
 
 // src/platform/tenants.ts
@@ -22286,7 +22583,7 @@ function parseLastTenantId(raw) {
 // src/tools/registerAuth.ts
 async function probeOidc(authority) {
   const url = `${authority.replace(/\/+$/, "")}/.well-known/openid-configuration`;
-  const res = await fetch(url);
+  const res = await yaaifFetch(url);
   const text = await res.text();
   if (!res.ok) throw new Error(`OIDC discovery failed (${res.status}): ${text.slice(0, 200)}`);
   const doc = JSON.parse(text);
@@ -22429,21 +22726,34 @@ function registerAuthTools(server, ctx) {
       const prevIssuer = ctx.cfg.oidcAuthority;
       await ctx.profiles.setActive(profile.id);
       applyProfileToConfig(ctx.cfg, profile);
+      installTlsDispatcher(ctx.cfg);
       const issuerChanged = prevIssuer.replace(/\/+$/, "").toLowerCase() !== profile.oidc_authority.replace(/\/+$/, "").toLowerCase();
       let session_cleared = false;
       if (issuerChanged && (clear_session_on_issuer_change ?? true)) {
         await ctx.auth.logout({ endSession: false });
         session_cleared = true;
       }
+      const exported = exportProfileEnv(ctx.cfg);
       return ok(`Active platform profile set to ${profile.id}.`, {
         profile,
         session_cleared,
         issuer_changed: issuerChanged,
+        export: exported,
         note: session_cleared ? "Session cleared due to OIDC issuer change \u2014 call yaaif_login or yaaif_ensure_session." : void 0
       });
     } catch (e) {
       return fail(String(e));
     }
+  });
+  server.registerTool("yaaif_platform_export", {
+    description: "Export active profile as shell exports and Cursor plugin variable JSON.",
+    inputSchema: {}
+  }, async () => {
+    const exported = exportProfileEnv(ctx.cfg);
+    return ok("Exported platform profile env.", {
+      profile_id: ctx.cfg.activeProfileId || inferProfileId(ctx.cfg),
+      ...exported
+    });
   });
   server.registerTool("yaaif_platform_save", {
     description: "Save or update a custom platform profile under ~/.yaaif/cursor/profiles.json.",
@@ -22457,6 +22767,9 @@ function registerAuthTools(server, ctx) {
       control_plane_base_url: external_exports.string().optional(),
       approval_base_url: external_exports.string().optional(),
       oidc_client_id: external_exports.string().optional(),
+      extra_ca_file: external_exports.string().optional(),
+      client_cert_file: external_exports.string().optional(),
+      client_key_file: external_exports.string().optional(),
       activate: external_exports.boolean().optional()
     }
   }, async (args) => {
@@ -22470,11 +22783,15 @@ function registerAuthTools(server, ctx) {
         agent_base_url: args.agent_base_url || "",
         control_plane_base_url: args.control_plane_base_url || "",
         approval_base_url: args.approval_base_url || "",
-        oidc_client_id: args.oidc_client_id
+        oidc_client_id: args.oidc_client_id,
+        extra_ca_file: args.extra_ca_file,
+        client_cert_file: args.client_cert_file,
+        client_key_file: args.client_key_file
       });
       if (args.activate) {
         await ctx.profiles.setActive(profile.id);
         applyProfileToConfig(ctx.cfg, profile);
+        installTlsDispatcher(ctx.cfg);
       }
       return ok(`Saved custom profile ${profile.id}.`, { profile, activated: Boolean(args.activate) });
     } catch (e) {
@@ -22514,7 +22831,7 @@ function registerAuthTools(server, ctx) {
     }
     const probe = async (key, url) => {
       try {
-        out[key] = (await fetch(url)).status;
+        out[key] = (await yaaifFetch(url)).status;
       } catch (e) {
         out[`${key}_error`] = String(e);
       }
@@ -22546,6 +22863,7 @@ function registerAuthTools(server, ctx) {
       } catch (e) {
         tenant = { auto_select_error: String(e) };
       }
+      void ctx.telemetry.increment("login_ok");
       return ok("Logged in to YAAIF.", {
         email: session.email,
         name: session.name,
@@ -22559,6 +22877,34 @@ function registerAuthTools(server, ctx) {
         tenant_selection: tenant
       });
     } catch (e) {
+      void ctx.telemetry.increment("login_fail");
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_login_device", {
+    description: "Headless/CI device-code login (Keycloak device grant). Requires oauth2.device.authorization.grant.enabled on yaaif-cursor.",
+    inputSchema: { timeout_ms: external_exports.number().optional() }
+  }, async ({ timeout_ms }) => {
+    try {
+      const { session, verification_uri, user_code } = await ctx.auth.deviceLogin({ timeout_ms });
+      let tenant;
+      try {
+        tenant = await autoSelectTenant(ctx);
+      } catch (e) {
+        tenant = { auto_select_error: String(e) };
+      }
+      void ctx.telemetry.increment("login_device_ok");
+      return ok("Device login complete.", {
+        email: session.email,
+        tenant_id: (await ctx.auth.session())?.tenant_id || session.tenant_id,
+        tenant_name: (await ctx.auth.session())?.tenant_name,
+        verification_uri,
+        user_code,
+        profile_id: session.profile_id,
+        tenant_selection: tenant
+      });
+    } catch (e) {
+      void ctx.telemetry.increment("login_device_fail");
       return fail(String(e));
     }
   });
@@ -22737,8 +23083,10 @@ function registerAuthTools(server, ctx) {
       if (tenant) {
         const set = await resolveAndSetTenant(ctx, tenant);
         if (!set.ok) {
+          void ctx.telemetry.increment("ensure_session_fail");
           return fail(set.error, { ready: false, candidates: set.candidates, oidc });
         }
+        void ctx.telemetry.increment("ensure_session_ok");
         return ok("Session ready.", {
           ready: true,
           logged_in,
@@ -22769,6 +23117,7 @@ function registerAuthTools(server, ctx) {
           hint: "Call yaaif_set_tenant with a tenant name, slug, or uuid."
         });
       }
+      void ctx.telemetry.increment("ensure_session_ok");
       return ok("Session ready.", {
         ready: true,
         logged_in,
@@ -22784,6 +23133,7 @@ function registerAuthTools(server, ctx) {
         oidc
       });
     } catch (e) {
+      void ctx.telemetry.increment("ensure_session_fail");
       return errPayload(e);
     }
   });
@@ -23109,11 +23459,13 @@ function registerPlanTools(server, ctx) {
         },
         buckets
       );
+      void ctx.telemetry.increment(result.ok ? "plan_verify_ok" : "plan_verify_fail");
       return ok(
         result.ok ? "Plan verification passed." : "Plan verification found missing components.",
         { ...result, catalog_errors: raw.errors }
       );
     } catch (e) {
+      void ctx.telemetry.increment("plan_verify_fail");
       return fail(String(e));
     }
   });
@@ -23163,12 +23515,345 @@ function registerPlanTools(server, ctx) {
     }
     return ok(`Dry-run prepared ${actions.length} action(s); nothing was mutated.`, out);
   });
+  server.registerTool("yaaif_plan_execution_save", {
+    description: "Persist a plan execution checklist (step statuses + result ids) under ~/.yaaif/cursor/plan-executions/ for resume.",
+    inputSchema: {
+      slug: external_exports.string(),
+      plan_path: external_exports.string().optional(),
+      steps: external_exports.array(external_exports.object({
+        id: external_exports.string(),
+        tool: external_exports.string(),
+        arguments: external_exports.record(external_exports.unknown()).optional(),
+        note: external_exports.string().optional(),
+        status: external_exports.enum(["pending", "done", "failed", "skipped"]).optional(),
+        result_ids: external_exports.record(external_exports.string()).optional(),
+        error: external_exports.string().optional()
+      }))
+    }
+  }, async ({ slug, plan_path, steps }) => {
+    const sess = await ctx.auth.session();
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const existing = await ctx.plans.get(slug);
+    const normalized = steps.map((s) => ({
+      id: s.id,
+      tool: s.tool,
+      arguments: s.arguments,
+      note: s.note,
+      status: s.status || "pending",
+      result_ids: s.result_ids,
+      error: s.error,
+      updated_at: now
+    }));
+    const exec = {
+      slug,
+      plan_path: plan_path || existing?.plan_path,
+      tenant_id: sess?.tenant_id,
+      profile_id: ctx.cfg.activeProfileId || sess?.profile_id,
+      created_at: existing?.created_at || now,
+      updated_at: now,
+      steps: normalized
+    };
+    const saved = await ctx.plans.save(exec);
+    return ok(`Saved plan execution ${slug}.`, { execution: saved, resume: ctx.plans.resumeHint(saved) });
+  });
+  server.registerTool("yaaif_plan_execution_get", {
+    description: "Load a saved plan execution by slug.",
+    inputSchema: { slug: external_exports.string() }
+  }, async ({ slug }) => {
+    const exec = await ctx.plans.get(slug);
+    if (!exec) return fail(`plan execution not found: ${slug}`);
+    return ok(`Loaded plan execution ${slug}.`, { execution: exec, resume: ctx.plans.resumeHint(exec) });
+  });
+  server.registerTool("yaaif_plan_execution_list", {
+    description: "List saved plan executions.",
+    inputSchema: {}
+  }, async () => {
+    return ok("Listed plan executions.", { items: await ctx.plans.list() });
+  });
+  server.registerTool("yaaif_plan_execution_update_step", {
+    description: "Update one step status/result_ids on a saved plan execution (call after each mutate).",
+    inputSchema: {
+      slug: external_exports.string(),
+      step_id: external_exports.string(),
+      status: external_exports.enum(["pending", "done", "failed", "skipped"]),
+      result_ids: external_exports.record(external_exports.string()).optional(),
+      error: external_exports.string().optional()
+    }
+  }, async ({ slug, step_id, status, result_ids, error: error2 }) => {
+    const exec = await ctx.plans.get(slug);
+    if (!exec) return fail(`plan execution not found: ${slug}`);
+    const step = exec.steps.find((s) => s.id === step_id);
+    if (!step) return fail(`step not found: ${step_id}`);
+    step.status = status;
+    step.result_ids = result_ids ?? step.result_ids;
+    step.error = error2;
+    step.updated_at = (/* @__PURE__ */ new Date()).toISOString();
+    const saved = await ctx.plans.save(exec);
+    return ok(`Updated step ${step_id} \u2192 ${status}.`, { execution: saved, resume: ctx.plans.resumeHint(saved) });
+  });
+  server.registerTool("yaaif_plan_execution_resume", {
+    description: "Return the next pending/failed step and collected ids so the agent can continue without redoing completed work.",
+    inputSchema: { slug: external_exports.string() }
+  }, async ({ slug }) => {
+    const exec = await ctx.plans.get(slug);
+    if (!exec) return fail(`plan execution not found: ${slug}`);
+    const resume = ctx.plans.resumeHint(exec);
+    return ok(
+      resume.complete ? `Plan execution ${slug} is complete.` : `Resume ${slug} at step ${resume.next_step?.id} (${resume.next_step?.tool}).`,
+      { execution: exec, resume }
+    );
+  });
+}
+
+// src/tools/registerOps.ts
+function registerOpsTools(server, ctx) {
+  const decisionBody = {
+    note: external_exports.string().optional(),
+    decided_by: external_exports.string().optional()
+  };
+  server.registerTool("yaaif_ambient_run_pause", {
+    description: "Pause an ambient run (agent-service).",
+    inputSchema: { run_id: external_exports.string() }
+  }, async ({ run_id }) => {
+    try {
+      return ok(`Paused run ${run_id}.`, {
+        run: await ctx.api.agentJSON("POST", `/api/ambient/runs/${encodeURIComponent(run_id)}/pause`)
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_ambient_run_resume", {
+    description: "Resume a paused ambient run.",
+    inputSchema: { run_id: external_exports.string() }
+  }, async ({ run_id }) => {
+    try {
+      return ok(`Resumed run ${run_id}.`, {
+        run: await ctx.api.agentJSON("POST", `/api/ambient/runs/${encodeURIComponent(run_id)}/resume`)
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_ambient_run_approve", {
+    description: "Approve an ambient run gate (agent-service). If managed by approval-service, use yaaif_approval_task_decide instead.",
+    inputSchema: { run_id: external_exports.string(), ...decisionBody }
+  }, async ({ run_id, note, decided_by }) => {
+    try {
+      return ok(`Approved run ${run_id}.`, {
+        run: await ctx.api.agentJSON(
+          "POST",
+          `/api/ambient/runs/${encodeURIComponent(run_id)}/approve`,
+          { note, decided_by }
+        )
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_ambient_run_reject", {
+    description: "Reject an ambient run gate (agent-service).",
+    inputSchema: { run_id: external_exports.string(), ...decisionBody }
+  }, async ({ run_id, note, decided_by }) => {
+    try {
+      return ok(`Rejected run ${run_id}.`, {
+        run: await ctx.api.agentJSON(
+          "POST",
+          `/api/ambient/runs/${encodeURIComponent(run_id)}/reject`,
+          { note, decided_by }
+        )
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_ambient_run_stop", {
+    description: "Stop an ambient run.",
+    inputSchema: { run_id: external_exports.string(), ...decisionBody }
+  }, async ({ run_id, note, decided_by }) => {
+    try {
+      return ok(`Stopped run ${run_id}.`, {
+        run: await ctx.api.agentJSON(
+          "POST",
+          `/api/ambient/runs/${encodeURIComponent(run_id)}/stop`,
+          { note, decided_by }
+        )
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_approval_inbox_list", {
+    description: "List approval inbox tasks (approval-service).",
+    inputSchema: {
+      status_scope: external_exports.string().optional(),
+      limit: external_exports.number().optional(),
+      offset: external_exports.number().optional()
+    }
+  }, async ({ status_scope, limit, offset }) => {
+    const params = new URLSearchParams();
+    if (status_scope) params.set("status_scope", status_scope);
+    if (limit) params.set("limit", String(limit));
+    if (offset) params.set("offset", String(offset));
+    const path2 = `/api/approval/inbox/tasks${params.size ? `?${params}` : ""}`;
+    try {
+      return ok("Listed approval inbox tasks.", {
+        result: await ctx.api.approvalJSON("GET", path2)
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_approval_task_claim", {
+    description: "Claim an approval inbox task.",
+    inputSchema: { task_id: external_exports.string() }
+  }, async ({ task_id }) => {
+    try {
+      return ok(`Claimed task ${task_id}.`, {
+        result: await ctx.api.approvalJSON(
+          "POST",
+          `/api/approval/tasks/${encodeURIComponent(task_id)}/claim`
+        )
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_approval_task_decide", {
+    description: "Decide an approval task (approve|reject|request_clarification|send_back).",
+    inputSchema: {
+      task_id: external_exports.string(),
+      decision: external_exports.string(),
+      comment: external_exports.string().optional(),
+      channel: external_exports.string().optional(),
+      idempotency_key: external_exports.string().optional(),
+      claim_first: external_exports.boolean().optional()
+    }
+  }, async ({ task_id, decision, comment, channel, idempotency_key, claim_first }) => {
+    try {
+      if (claim_first) {
+        try {
+          await ctx.api.approvalJSON("POST", `/api/approval/tasks/${encodeURIComponent(task_id)}/claim`);
+        } catch {
+        }
+      }
+      return ok(`Decision ${decision} on task ${task_id}.`, {
+        result: await ctx.api.approvalJSON(
+          "POST",
+          `/api/approval/tasks/${encodeURIComponent(task_id)}/decide`,
+          { decision, comment, channel: channel || "admin", idempotency_key }
+        )
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+}
+
+// src/tools/registerDoctor.ts
+function registerDoctorTools(server, ctx) {
+  server.registerTool("yaaif_doctor", {
+    description: "End-to-end health narrative: profile, OIDC discovery, TLS, auth, tenant, catalog ping. Prefer before create/plan work.",
+    inputSchema: {
+      login_if_needed: external_exports.boolean().optional()
+    }
+  }, async ({ login_if_needed }) => {
+    const checks = [];
+    const add = (name, okFlag, detail) => {
+      checks.push({ name, ok: okFlag, detail: detail !== void 0 ? redactSecrets(detail) : void 0 });
+    };
+    add("profile", true, {
+      profile_id: ctx.cfg.activeProfileId || inferProfileId(ctx.cfg),
+      oidc_authority: ctx.cfg.oidcAuthority,
+      api_base: ctx.cfg.apiBaseUrl,
+      extra_ca_file: ctx.cfg.extraCaFile || null,
+      client_cert_file: ctx.cfg.clientCertFile || null
+    });
+    try {
+      const url = `${ctx.cfg.oidcAuthority}/.well-known/openid-configuration`;
+      const res = await yaaifFetch(url);
+      const doc = res.ok ? await res.json() : null;
+      add("oidc_discovery", res.ok, {
+        status: res.status,
+        issuer: doc?.issuer,
+        device_authorization_endpoint: doc?.device_authorization_endpoint ?? null
+      });
+    } catch (e) {
+      add("oidc_discovery", false, String(e));
+    }
+    for (const [name, base] of [
+      ["api_health", ctx.cfg.apiBaseUrl],
+      ["agent_health", ctx.cfg.agentBaseUrl],
+      ["control_plane_health", ctx.cfg.controlPlaneBaseUrl],
+      ["approval_health", ctx.cfg.approvalBaseUrl]
+    ]) {
+      try {
+        const status = (await yaaifFetch(`${base}/health`)).status;
+        add(name, status >= 200 && status < 500, { status, base });
+      } catch (e) {
+        add(name, false, { base, error: String(e) });
+      }
+    }
+    let sessionReady = false;
+    try {
+      const ensured = await (async () => {
+        const sess = await ctx.auth.session();
+        ctx.auth.assertIssuerMatch(sess);
+        if (!sess?.tokens.access_token) {
+          if (!login_if_needed) return { ready: false, reason: "not_authenticated" };
+          await ctx.auth.login();
+        } else {
+          await ctx.auth.accessToken();
+        }
+        const who = await ctx.auth.session();
+        return {
+          ready: Boolean(who?.tenant_id || ctx.cfg.defaultTenantId),
+          tenant_id: who?.tenant_id || ctx.cfg.defaultTenantId || "",
+          tenant_name: who?.tenant_name || "",
+          email: who?.email
+        };
+      })();
+      sessionReady = Boolean(ensured.ready);
+      add("session", sessionReady, ensured);
+      void ctx.telemetry.increment(sessionReady ? "doctor_session_ok" : "doctor_session_incomplete");
+    } catch (e) {
+      add("session", false, String(e));
+      void ctx.telemetry.increment("doctor_session_fail");
+    }
+    if (sessionReady) {
+      try {
+        const catalog = await ctx.api.agentJSON("GET", "/api/agents?limit=1");
+        add("catalog_ping", true, { agents: catalog });
+        void ctx.telemetry.increment("doctor_catalog_ok");
+      } catch (e) {
+        add("catalog_ping", false, String(e));
+        void ctx.telemetry.increment("doctor_catalog_fail");
+      }
+    }
+    const failed = checks.filter((c) => !c.ok);
+    const summary = failed.length ? `Doctor found ${failed.length} issue(s): ${failed.map((f) => f.name).join(", ")}` : "Doctor checks passed.";
+    return failed.length ? fail(summary, { checks, ready: false }) : ok(summary, { checks, ready: true });
+  });
+  server.registerTool("yaaif_telemetry_get", {
+    description: "Get anonymous local telemetry opt-in state and counters (~/.yaaif/cursor/telemetry.json).",
+    inputSchema: {}
+  }, async () => {
+    const state = await ctx.telemetry.load();
+    return ok(state.enabled ? "Telemetry enabled." : "Telemetry disabled.", state);
+  });
+  server.registerTool("yaaif_telemetry_set", {
+    description: "Enable/disable anonymous local success/fail counters (no network, no tokens).",
+    inputSchema: { enabled: external_exports.boolean() }
+  }, async ({ enabled }) => {
+    const state = await ctx.telemetry.setEnabled(enabled);
+    return ok(`Telemetry ${enabled ? "enabled" : "disabled"}.`, state);
+  });
 }
 
 // src/tools/register.ts
 import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join as join4 } from "node:path";
+import { join as join6 } from "node:path";
 import { execFileSync as execFileSync2 } from "node:child_process";
 function registerAllTools(server, ctx) {
   registerAuthTools(server, ctx);
@@ -23178,6 +23863,8 @@ function registerAllTools(server, ctx) {
   registerDesktopTools(server, ctx);
   registerApprovalTools(server, ctx);
   registerPlanTools(server, ctx);
+  registerOpsTools(server, ctx);
+  registerDoctorTools(server, ctx);
 }
 function registerSkills(server, ctx) {
   server.registerTool("yaaif_skill_list", {
@@ -23195,11 +23882,18 @@ function registerSkills(server, ctx) {
     }
   });
   server.registerTool("yaaif_skill_get", {
-    description: "Get one skill by id.",
+    description: "Get one skill by id (via catalog list ?ids=).",
     inputSchema: { skill_id: external_exports.string() }
   }, async ({ skill_id }) => {
     try {
-      return ok("Fetched skill.", { skill: await ctx.api.agentJSON("GET", `/api/skills/${encodeURIComponent(skill_id)}`) });
+      const result = await ctx.api.agentJSON(
+        "GET",
+        `/api/skills?ids=${encodeURIComponent(skill_id)}&limit=1`
+      );
+      const items = Array.isArray(result?.items) ? result.items : [];
+      const skill = items[0];
+      if (!skill) return fail(`skill not found: ${skill_id}`);
+      return ok("Fetched skill.", { skill, result });
     } catch (e) {
       return fail(String(e));
     }
@@ -23409,11 +24103,17 @@ function registerAmbient(server, ctx) {
   }, async ({ q, agent_type, limit }) => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
-    if (agent_type) params.set("agent_type", agent_type);
-    if (limit) params.set("limit", String(limit));
-    const path2 = `/api/agents${params.size ? `?${params}` : ""}`;
+    params.set("limit", String(Math.min(Math.max(limit ?? 50, 1), 200)));
+    const path2 = `/api/agents?${params}`;
     try {
-      return ok("Listed agents.", { result: await ctx.api.agentJSON("GET", path2) });
+      const result = await ctx.api.agentJSON("GET", path2);
+      const items = Array.isArray(result?.items) ? result.items : [];
+      const want = (agent_type || "").trim().toLowerCase();
+      const filtered = want ? items.filter((a) => String(a.agent_type ?? "").toLowerCase() === want) : items;
+      const capped = limit && limit > 0 ? filtered.slice(0, limit) : filtered;
+      return ok("Listed agents.", {
+        result: { ...result, items: capped, filtered_by_agent_type: want || null, unfiltered_count: items.length }
+      });
     } catch (e) {
       return fail(String(e));
     }
@@ -23706,19 +24406,19 @@ function registerMcp(server, ctx) {
       }
       const lang = args.language || "go";
       const workspace = args.workspace_root || process.cwd();
-      const parent = args.target_dir ? args.target_dir.startsWith("/") ? args.target_dir : join4(workspace, args.target_dir) : join4(workspace, "mcp-servers");
-      const dest = join4(parent, `${name}-mcp-service`);
+      const parent = args.target_dir ? args.target_dir.startsWith("/") ? args.target_dir : join6(workspace, args.target_dir) : join6(workspace, "mcp-servers");
+      const dest = join6(parent, `${name}-mcp-service`);
       if (existsSync(dest)) return fail(`destination already exists: ${dest}`);
       const repo = lang === "python" ? "https://github.com/yaaif/mcp-server-templates-py.git" : "https://github.com/yaaif/mcp-server-templates-go.git";
-      const tmp = mkdtempSync(join4(tmpdir(), "yaaif-mcp-scaffold-"));
+      const tmp = mkdtempSync(join6(tmpdir(), "yaaif-mcp-scaffold-"));
       try {
         execFileSync2("git", ["clone", "--depth", "1", repo, tmp], { stdio: "inherit" });
         cpSync(tmp, dest, {
           recursive: true,
-          filter: (src) => !src.includes(`${join4(tmp, ".git")}`) && !src.endsWith("/.git")
+          filter: (src) => !src.includes(`${join6(tmp, ".git")}`) && !src.endsWith("/.git")
         });
-        rmSync(join4(dest, ".git"), { recursive: true, force: true });
-        const renameScript = join4(dest, "scripts", "rename-service.sh");
+        rmSync(join6(dest, ".git"), { recursive: true, force: true });
+        const renameScript = join6(dest, "scripts", "rename-service.sh");
         if (existsSync(renameScript)) {
           try {
             execFileSync2("bash", [renameScript, name], { cwd: dest, stdio: "inherit" });
@@ -23995,13 +24695,16 @@ async function main() {
   } else {
     await applyActiveProfile(cfg, profiles);
   }
+  installTlsDispatcher(cfg);
   const auth = new AuthClient(cfg, store);
   const api = new ApiClient(cfg, auth);
+  const plans = new PlanExecutionStore(cfg.cursorHome);
+  const telemetry = new TelemetryStore(cfg.cursorHome);
   const server = new McpServer({
     name: "yaaif-cursor",
-    version: "0.5.0"
+    version: "0.6.0"
   });
-  registerAllTools(server, { cfg, auth, api, profiles });
+  registerAllTools(server, { cfg, auth, api, profiles, plans, telemetry });
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
