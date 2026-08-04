@@ -83,6 +83,7 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 | Skill / command | Purpose |
 |-----------------|--------|
 | `yaaif-auth` / `/yaaif-login` | Login + tenant |
+| `yaaif-plan-usecase` / `/yaaif-plan` | Use-case plan → approve → create agents/skills/workflows |
 | `yaaif-create-skill` / `/yaaif-new-skill` | Author + load skill |
 | `yaaif-create-mcp` / `/yaaif-new-mcp` | Scaffold + deploy MCP |
 | `yaaif-create-ambient` / `/yaaif-new-workflow` | Ambient workflows |

@@ -5,9 +5,11 @@ Partners do **not** need the yaaif-platform monorepo.
 ## Recommended order
 
 1. Auth (`/yaaif-login`)
-2. MCP tools (`/yaaif-new-mcp`) — deploy or link
-3. Ambient workflow (`/yaaif-new-workflow`) when automation is required
-4. Chat skill (`/yaaif-new-skill`) that uses catalog tools / ambient triggers
+2. Multi-capability use cases: `/yaaif-plan` (propose → approve → execute)
+3. Or step-by-step:
+   - MCP tools (`/yaaif-new-mcp`) — deploy or link
+   - Ambient workflow (`/yaaif-new-workflow`) when automation is required
+   - Chat skill (`/yaaif-new-skill`) that uses catalog tools / ambient triggers
 
 ## Workspace layout (partner repo)
 

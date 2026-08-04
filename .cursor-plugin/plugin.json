@@ -1,7 +1,7 @@
 {
   "name": "yaaif",
-  "description": "Authenticate to YAAIF and create skills, MCP deployments, and ambient workflows from Cursor.",
-  "version": "0.2.1",
+  "description": "Authenticate to YAAIF, plan use cases, and create skills, MCP deployments, and ambient workflows from Cursor.",
+  "version": "0.3.0",
   "author": {
     "name": "YAAIF / BeezLabs",
     "email": "support@yaaif.com"
