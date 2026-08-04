@@ -2,7 +2,7 @@
   "mcpServers": {
     "yaaif": {
       "command": "node",
-      "args": ["packages/mcp/dist/cli.js"],
+      "args": ["${CURSOR_PLUGIN_ROOT}/packages/mcp/dist/cli.js"],
       "env": {
         "YAAIF_OIDC_AUTHORITY": "${YAAIF_OIDC_AUTHORITY}",
         "YAAIF_OIDC_CLIENT_ID": "${YAAIF_OIDC_CLIENT_ID}",
