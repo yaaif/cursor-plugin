@@ -25,17 +25,20 @@
       "YAAIF_OIDC_AUTHORITY": {
         "type": "string",
         "title": "OIDC authority",
-        "description": "Keycloak realm URL, e.g. https://platform.example.com/auth/realms/yaaif"
+        "description": "Keycloak realm URL",
+        "default": "https://platform.yaaif.ai/auth/realms/yaaif"
       },
       "YAAIF_API_BASE_URL": {
         "type": "string",
         "title": "API server base URL",
-        "description": "api-server origin (no path suffix)"
+        "description": "api-server origin (no path suffix)",
+        "default": "https://platform.yaaif.ai"
       },
       "YAAIF_AGENT_BASE_URL": {
         "type": "string",
         "title": "Agent service base URL",
-        "description": "agent-service origin"
+        "description": "agent-service origin",
+        "default": "https://platform.yaaif.ai/agent-service"
       },
       "YAAIF_DEFAULT_TENANT_ID": {
         "type": "string",

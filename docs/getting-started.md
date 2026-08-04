@@ -1,12 +1,11 @@
 # Getting started
 
 1. Install the **yaaif** Cursor plugin (Marketplace or local symlink).
-2. Ask your YAAIF operator for:
-   - OIDC authority (`…/auth/realms/yaaif`)
-   - API base URL
-   - Agent service base URL
-   - Your tenant UUID (optional if discoverable after login)
-3. Configure plugin variables in Cursor.
+2. Configure URLs:
+   - Hosted default: `https://platform.yaaif.ai` (see README)
+   - Local Traefik: `https://platform.yaaif.local` (see [configure-environment.md](configure-environment.md))
+   - Optional tenant UUID after login
+3. Set plugin variables in Cursor (or export the env vars before launch).
 4. In Agent: run `/yaaif-login` or ask to authenticate to YAAIF.
 5. Create a lean skill with `/yaaif-new-skill`, or a workflow with `/yaaif-new-workflow`.
 

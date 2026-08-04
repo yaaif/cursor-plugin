@@ -18,17 +18,35 @@ This repo is also consumed by [yaaif-platform](https://github.com/yaaif/yaaif-pl
 
 ### Cursor Marketplace / Team Marketplace
 
-Install **yaaif**, then configure plugin variables (Customize → Plugins → Configure):
+Install **yaaif**, then configure plugin variables (Customize → Plugins → Configure). Defaults point at hosted YAAIF:
 
-| Variable | Example |
+```bash
+export YAAIF_OIDC_AUTHORITY=https://platform.yaaif.ai/auth/realms/yaaif
+export YAAIF_OIDC_CLIENT_ID=yaaif-cursor
+export YAAIF_API_BASE_URL=https://platform.yaaif.ai
+export YAAIF_AGENT_BASE_URL=https://platform.yaaif.ai/agent-service
+export YAAIF_DEFAULT_TENANT_ID=<tenant-uuid>   # optional
+```
+
+| Variable | Default |
 |----------|---------|
-| `YAAIF_OIDC_AUTHORITY` | `https://platform.example.com/auth/realms/yaaif` |
-| `YAAIF_API_BASE_URL` | `https://platform.example.com` (api-server origin) |
-| `YAAIF_AGENT_BASE_URL` | `https://platform.example.com/agent-service` |
+| `YAAIF_OIDC_AUTHORITY` | `https://platform.yaaif.ai/auth/realms/yaaif` |
+| `YAAIF_API_BASE_URL` | `https://platform.yaaif.ai` |
+| `YAAIF_AGENT_BASE_URL` | `https://platform.yaaif.ai/agent-service` |
 | `YAAIF_DEFAULT_TENANT_ID` | optional UUID |
-| `YAAIF_OIDC_CLIENT_ID` | default `yaaif-cursor` |
+| `YAAIF_OIDC_CLIENT_ID` | `yaaif-cursor` |
 
 Your YAAIF operator must enable the public Keycloak client `yaaif-cursor` (see platform script `scripts/keycloak/ensure-yaaif-cursor-client.sh`).
+
+### Local Traefik (`platform.yaaif.local`)
+
+```bash
+export YAAIF_OIDC_AUTHORITY=https://platform.yaaif.local/auth/realms/yaaif
+export YAAIF_OIDC_CLIENT_ID=yaaif-cursor
+export YAAIF_API_BASE_URL=https://platform.yaaif.local
+export YAAIF_AGENT_BASE_URL=https://platform.yaaif.local/agent-service
+export YAAIF_DEFAULT_TENANT_ID=<tenant-uuid>   # optional
+```
 
 ### Local symlink (developers)
 
@@ -38,7 +56,7 @@ cd cursor-plugin/packages/mcp && npm install && npm run build && cd ../..
 ln -sf "$PWD" ~/.cursor/plugins/local/yaaif
 ```
 
-Reload Cursor.
+Reload Cursor. For local platform stacks, use the `platform.yaaif.local` exports above (see [configure-environment.md](docs/configure-environment.md)).
 
 ## Runtime
 
