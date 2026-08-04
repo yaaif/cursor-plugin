@@ -22,11 +22,11 @@ Task Progress:
 - [ ] 2. Capture intent (interview if vague)
 - [ ] 3. Decompose (chat / ambient / desktop / MCP / agents)
 - [ ] 4. Write plan file + stop for approval
-- [ ] 5. Optional dry-run (yaaif_plan_dry_run)
-- [ ] 6. Save execution checklist (yaaif_plan_execution_save)
+- [ ] 5. Optional dry-run (yaaif_plan_dry_run) with local_tool_names
+- [ ] 6. Save execution checklist (yaaif_plan_execution_save); include yaaif_skill_tools_check before skill create
 - [ ] 7. Execute (MCP → agents → approvals → ambient → skills → map → desktop)
 - [ ] 8. On failure: yaaif_plan_execution_resume and continue
-- [ ] 9. Verify (yaaif_plan_verify) + hand off
+- [ ] 9. Verify (yaaif_plan_verify including local_tool_names) + hand off
 ```
 
 ## Prerequisites

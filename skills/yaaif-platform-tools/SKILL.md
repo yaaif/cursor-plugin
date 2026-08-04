@@ -36,9 +36,10 @@ Read [references/local-tools.md](references/local-tools.md) for family ↔ REST 
 - Chat→ambient skills must include exact locals: `list_ambient_workflows`, `trigger_ambient_workflow`
 - Prefer platform lifecycle locals over raw REST file write when available:
   - `skill_create_guided_draft` / `yaaif_skill_guided_draft`
-  - `skill_update_module_files` / `skill_edit_section` / `skill_develop`
+  - `yaaif_skill_update_module_files` / `yaaif_skill_edit_section` / `yaaif_skill_develop`
   - `skill_validate_module` / `yaaif_skill_validate_module`
   - `skill_tool_link_manager` + `skill_mcp_tool_catalog`
+- Always run `yaaif_skill_tools_check` before enabling/mapping a new skill
 - File-aware skills: call `yaaif_dev_session_ensure` then `files_list` / `file_load_context` / `file_share_link`
 - High-impact tools (`skill_archive_or_delete`, `skill_repo_ops`, `skill_release_manager`, …) require `allow_mutating: true` on `yaaif_local_tool_call`
 

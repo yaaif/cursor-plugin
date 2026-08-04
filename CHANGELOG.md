@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0
+
+- Dev-session auto-picks default skills agent; skills runtime attached on local-tool calls
+- `yaaif_skill_tools_check` for frontmatter/tools vs local+MCP catalogs
+- Plan verify/dry-run include `local_tool_names`
+- Doctor smoke-calls `list_ambient_workflows`
+- More aliases: update module files, edit section, list/trigger ambient
+- List pagination + `names_only`; family-aware RBAC; structured local-tool call audit logs
+- Docs: `docs/platform-local-tools.md`; `npm run generate:local-tools-ref`
+- Integration smoke for local-tools when `YAAIF_INTEGRATION=1`
+
 ## 0.7.0
 
 - Platform local tools bridge: `yaaif_local_tools_list` / `get` / `call` / catalog overview

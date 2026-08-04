@@ -23362,6 +23362,7 @@ function asArray2(value) {
   if (value && typeof value === "object") {
     const obj = value;
     if (Array.isArray(obj.items)) return obj.items;
+    if (Array.isArray(obj.names)) return obj.names;
     if (Array.isArray(obj.skills)) return obj.skills;
     if (Array.isArray(obj.agents)) return obj.agents;
     if (Array.isArray(obj.workflows)) return obj.workflows;
@@ -23370,22 +23371,33 @@ function asArray2(value) {
   return [];
 }
 function nameOf(row) {
+  if (typeof row === "string") return row.trim();
   if (!row || typeof row !== "object") return "";
   const o = row;
   return String(o.name ?? o.id ?? "").trim();
 }
 function idOf(row) {
+  if (typeof row === "string") return row.trim();
   if (!row || typeof row !== "object") return "";
   const o = row;
   return String(o.id ?? "").trim();
 }
 function extractCatalogBuckets(raw) {
+  const localRaw = raw.local_tools;
+  let localRows = asArray2(localRaw);
+  if (localRaw && typeof localRaw === "object" && Array.isArray(localRaw.names)) {
+    localRows = localRaw.names;
+  }
   return {
     agents: asArray2(raw.agents).map((r) => ({ id: idOf(r), name: nameOf(r) })),
     skills: asArray2(raw.skills).map((r) => ({ id: idOf(r) || nameOf(r), name: nameOf(r) })),
     workflows: asArray2(raw.ambient_workflows).map((r) => ({ id: idOf(r), name: nameOf(r) })),
     mcp_tools: asArray2(raw.mcp_tools).map((r) => ({ id: idOf(r), name: nameOf(r) })),
-    ambient_agents: asArray2(raw.ambient_agents).map((r) => ({ id: idOf(r), name: nameOf(r) }))
+    ambient_agents: asArray2(raw.ambient_agents).map((r) => ({ id: idOf(r), name: nameOf(r) })),
+    local_tools: localRows.map((r) => {
+      const n = nameOf(r);
+      return { id: n, name: n };
+    })
   };
 }
 function hasName(rows, want) {
@@ -23415,6 +23427,7 @@ function verifyPlanAgainstCatalog(expectations, buckets) {
   check2("workflow_names", buckets.workflows);
   check2("mcp_tool_names", buckets.mcp_tools);
   check2("ambient_agent_names", buckets.ambient_agents);
+  check2("local_tool_names", buckets.local_tools);
   const ok2 = Object.keys(missing).length === 0;
   return { ok: ok2, found, missing, buckets };
 }
@@ -23439,20 +23452,22 @@ async function loadCatalogSnapshot(ctx, q, limit) {
     load("skills", () => ctx.api.agentJSON("GET", `/api/skills${qs}`)),
     load("mcp_tools", () => ctx.api.agentJSON("GET", `/api/mcp-tools${qs}`)),
     load("ambient_agents", () => ctx.api.agentJSON("GET", `/api/ambient/agents${qs}`)),
-    load("ambient_workflows", () => ctx.api.agentJSON("GET", `/api/ambient/workflows${qs}`))
+    load("ambient_workflows", () => ctx.api.agentJSON("GET", `/api/ambient/workflows${qs}`)),
+    load("local_tools", () => ctx.api.agentJSON("GET", "/api/local-tools?names_only=true"))
   ]);
   if (Object.keys(errors).length) out.errors = errors;
   return out;
 }
 function registerPlanTools(server, ctx) {
   server.registerTool("yaaif_plan_verify", {
-    description: "Diff expected plan components (agent/skill/workflow/MCP names) against the live tenant catalog.",
+    description: "Diff expected plan components (agent/skill/workflow/MCP/local-tool names) against the live tenant catalog.",
     inputSchema: {
       agent_names: external_exports.array(external_exports.string()).optional(),
       skill_ids: external_exports.array(external_exports.string()).optional(),
       workflow_names: external_exports.array(external_exports.string()).optional(),
       mcp_tool_names: external_exports.array(external_exports.string()).optional(),
       ambient_agent_names: external_exports.array(external_exports.string()).optional(),
+      local_tool_names: external_exports.array(external_exports.string()).optional(),
       q: external_exports.string().optional(),
       limit: external_exports.number().optional()
     }
@@ -23466,7 +23481,8 @@ function registerPlanTools(server, ctx) {
           skill_ids: args.skill_ids,
           workflow_names: args.workflow_names,
           mcp_tool_names: args.mcp_tool_names,
-          ambient_agent_names: args.ambient_agent_names
+          ambient_agent_names: args.ambient_agent_names,
+          local_tool_names: args.local_tool_names
         },
         buckets
       );
@@ -23494,17 +23510,18 @@ function registerPlanTools(server, ctx) {
         skill_ids: external_exports.array(external_exports.string()).optional(),
         workflow_names: external_exports.array(external_exports.string()).optional(),
         mcp_tool_names: external_exports.array(external_exports.string()).optional(),
-        ambient_agent_names: external_exports.array(external_exports.string()).optional()
+        ambient_agent_names: external_exports.array(external_exports.string()).optional(),
+        local_tool_names: external_exports.array(external_exports.string()).optional()
       }).optional()
     }
   }, async ({ actions, verify_catalog, expected }) => {
-    const mutating = actions.filter((a) => !/^yaaif_(catalog_|.*_list|.*_get|whoami|configure)/.test(a.tool));
+    const mutating = actions.filter((a) => !/^yaaif_(catalog_|.*_list|.*_get|whoami|configure|skill_tools_check|local_tools)/.test(a.tool));
     const out = {
       dry_run: true,
       action_count: actions.length,
       mutating_action_count: mutating.length,
       actions,
-      note: "No APIs were called except optional catalog verify."
+      note: "No APIs were called except optional catalog verify (includes local tools)."
     };
     if (verify_catalog || expected) {
       try {
@@ -23515,7 +23532,8 @@ function registerPlanTools(server, ctx) {
           skills: buckets.skills.length,
           workflows: buckets.workflows.length,
           mcp_tools: buckets.mcp_tools.length,
-          ambient_agents: buckets.ambient_agents.length
+          ambient_agents: buckets.ambient_agents.length,
+          local_tools: buckets.local_tools.length
         };
         if (expected) {
           out.precheck = verifyPlanAgainstCatalog(expected, buckets);
@@ -23855,6 +23873,19 @@ function registerDoctorTools(server, ctx) {
         add("local_tools", false, String(e));
         void ctx.telemetry.increment("doctor_local_tools_fail");
       }
+      try {
+        const smoke = await ctx.api.agentJSON(
+          "POST",
+          "/api/local-tools/list_ambient_workflows/call",
+          { arguments: {}, resolve_workspace: false }
+        );
+        const okSmoke = smoke?.is_error !== true;
+        add("local_tools_smoke", okSmoke, { tool: "list_ambient_workflows", result: smoke });
+        void ctx.telemetry.increment(okSmoke ? "doctor_local_tools_smoke_ok" : "doctor_local_tools_smoke_fail");
+      } catch (e) {
+        add("local_tools_smoke", false, String(e));
+        void ctx.telemetry.increment("doctor_local_tools_smoke_fail");
+      }
     }
     const failed = checks.filter((c) => !c.ok);
     const summary = failed.length ? `Doctor found ${failed.length} issue(s): ${failed.map((f) => f.name).join(", ")}` : "Doctor checks passed.";
@@ -23876,6 +23907,99 @@ function registerDoctorTools(server, ctx) {
   });
 }
 
+// src/lib/skillFrontmatter.ts
+function extractFrontmatterBlock(markdown) {
+  const m = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  return m?.[1] ?? "";
+}
+function parseYamlStringList(block, keys) {
+  const lines = block.split(/\r?\n/);
+  const keySet = new Set(keys.map((k) => k.toLowerCase()));
+  const out = [];
+  let inList = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const keyMatch = line.match(/^([A-Za-z0-9_-]+)\s*:\s*(.*)$/);
+    if (keyMatch) {
+      const key = keyMatch[1].toLowerCase();
+      const rest = keyMatch[2].trim();
+      if (!keySet.has(key)) {
+        inList = false;
+        continue;
+      }
+      if (rest.startsWith("[") && rest.endsWith("]")) {
+        const inner = rest.slice(1, -1);
+        for (const part of inner.split(",")) {
+          const v = part.trim().replace(/^['"]|['"]$/g, "");
+          if (v) out.push(v);
+        }
+        inList = false;
+        continue;
+      }
+      if (rest) {
+        out.push(rest.replace(/^['"]|['"]$/g, ""));
+        inList = false;
+        continue;
+      }
+      inList = true;
+      continue;
+    }
+    if (inList) {
+      const item = line.match(/^\s*-\s+(.+)$/);
+      if (item) {
+        out.push(item[1].trim().replace(/^['"]|['"]$/g, ""));
+      } else if (line.trim() === "" || /^\S/.test(line)) {
+        inList = false;
+      }
+    }
+  }
+  return out;
+}
+function extractSkillToolsFromMarkdown(markdown) {
+  const block = extractFrontmatterBlock(markdown);
+  if (!block) return [];
+  const allowed = parseYamlStringList(block, ["allowed-tools", "allowed_tools"]);
+  if (allowed.length) return dedupe(allowed);
+  return dedupe(parseYamlStringList(block, ["tools"]));
+}
+function dedupe(items) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const item of items) {
+    const t = item.trim();
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+  }
+  return out;
+}
+function verifyToolsAgainstCatalogs(tools, localNames, mcpNames) {
+  const localSet = new Set(localNames.map((n) => n.toLowerCase()));
+  const mcpSet = new Set(mcpNames.map((n) => n.toLowerCase()));
+  const found_local = [];
+  const found_mcp = [];
+  const missing = [];
+  for (const tool of tools) {
+    const key = tool.toLowerCase();
+    if (localSet.has(key)) {
+      found_local.push(tool);
+    } else if (mcpSet.has(key)) {
+      found_mcp.push(tool);
+    } else {
+      missing.push(tool);
+    }
+  }
+  return {
+    ok: missing.length === 0,
+    tools,
+    found_local,
+    found_mcp,
+    missing
+  };
+}
+
 // src/tools/registerLocalTools.ts
 var MUTATING_ACK_TOOLS = /* @__PURE__ */ new Set([
   "skill_archive_or_delete",
@@ -23895,17 +24019,40 @@ async function resolveDevSessionId(ctx, explicit) {
   const sess = await ctx.auth.session();
   return sess?.dev_session_id?.trim() || void 0;
 }
+async function resolveDevAgentId(ctx, explicit) {
+  if (explicit?.trim()) return explicit.trim();
+  const sess = await ctx.auth.session();
+  return sess?.dev_agent_id?.trim() || void 0;
+}
+async function callLocal(ctx, localName, args, opts = {}) {
+  const sessionId = await resolveDevSessionId(ctx, opts.session_id);
+  const agentId = await resolveDevAgentId(ctx, opts.agent_id);
+  return ctx.api.agentJSON("POST", `/api/local-tools/${encodeURIComponent(localName)}/call`, {
+    arguments: args ?? {},
+    session_id: sessionId,
+    agent_id: agentId,
+    branch: opts.branch,
+    allow_mutating: Boolean(opts.allow_mutating),
+    resolve_workspace: opts.resolve_workspace
+  });
+}
 function registerLocalTools(server, ctx) {
   server.registerTool("yaaif_local_tools_list", {
     description: "List agent-service built-in local tools (skill lifecycle, files, ambient trigger, state, approvals). Use when authoring SKILL.md tools: lists.",
     inputSchema: {
       family: external_exports.enum(["skill", "files", "ambient", "approval", "state", "memory", "context_store", "client", "other"]).optional(),
-      q: external_exports.string().optional()
+      q: external_exports.string().optional(),
+      limit: external_exports.number().optional(),
+      offset: external_exports.number().optional(),
+      names_only: external_exports.boolean().optional()
     }
-  }, async ({ family, q }) => {
+  }, async ({ family, q, limit, offset, names_only }) => {
     const params = new URLSearchParams();
     if (family) params.set("family", family);
     if (q) params.set("q", q);
+    if (limit && limit > 0) params.set("limit", String(limit));
+    if (offset && offset >= 0) params.set("offset", String(offset));
+    if (names_only) params.set("names_only", "true");
     const path2 = `/api/local-tools${params.size ? `?${params}` : ""}`;
     try {
       const result = await ctx.api.agentJSON("GET", path2);
@@ -23956,22 +24103,18 @@ function registerLocalTools(server, ctx) {
   }, async ({ name, arguments: args, session_id, agent_id, branch, allow_mutating, resolve_workspace }) => {
     const toolName = name.trim();
     if (!toolName) return fail("name is required");
-    const needsAck = MUTATING_ACK_TOOLS.has(toolName.toLowerCase());
-    if (needsAck && !allow_mutating) {
+    if (MUTATING_ACK_TOOLS.has(toolName.toLowerCase()) && !allow_mutating) {
       return fail(`tool requires allow_mutating=true: ${toolName}`);
     }
-    const sessionId = await resolveDevSessionId(ctx, session_id);
     try {
-      const result = await ctx.api.agentJSON("POST", `/api/local-tools/${encodeURIComponent(toolName)}/call`, {
-        arguments: args ?? {},
-        session_id: sessionId,
+      const result = await callLocal(ctx, toolName, args, {
+        session_id,
         agent_id,
         branch,
-        allow_mutating: Boolean(allow_mutating),
+        allow_mutating,
         resolve_workspace
       });
-      const isError = Boolean(result?.is_error);
-      if (isError) {
+      if (result?.is_error) {
         return fail(`Local tool ${toolName} returned an error.`, { result });
       }
       return ok(`Called local tool ${toolName}.`, { result });
@@ -23980,7 +24123,7 @@ function registerLocalTools(server, ctx) {
     }
   });
   server.registerTool("yaaif_dev_session_ensure", {
-    description: "Create or reuse a Cursor authoring chat session for files_* / session_state_* local tools. Persists session_id in ~/.yaaif/cursor/session.json.",
+    description: "Create or reuse a Cursor authoring chat session for files_* / session_state_* local tools. Auto-picks default skills agent when agent_id omitted. Persists ids in ~/.yaaif/cursor/session.json.",
     inputSchema: {
       session_id: external_exports.string().optional(),
       agent_id: external_exports.string().optional(),
@@ -24009,66 +24152,74 @@ function registerLocalTools(server, ctx) {
       return fail(String(e));
     }
   });
-  const alias = (tool, localName, description, extraSchema = {}) => {
+  server.registerTool("yaaif_skill_tools_check", {
+    description: "Verify skill frontmatter tools / allowed-tools (or an explicit tools list) exist in local tools or external MCP catalog. Run before skill create.",
+    inputSchema: {
+      markdown: external_exports.string().optional(),
+      tools: external_exports.array(external_exports.string()).optional()
+    }
+  }, async ({ markdown, tools }) => {
+    try {
+      let list = (tools ?? []).map((t) => t.trim()).filter(Boolean);
+      if (!list.length && markdown) {
+        list = extractSkillToolsFromMarkdown(markdown);
+      }
+      if (!list.length) {
+        return fail("No tools found \u2014 pass markdown with frontmatter or tools[].");
+      }
+      const [localRes, mcpRes] = await Promise.all([
+        ctx.api.agentJSON("GET", "/api/local-tools?names_only=true"),
+        ctx.api.agentJSON("GET", "/api/mcp-tools?limit=500")
+      ]);
+      const localNames = Array.isArray(localRes.names) ? localRes.names : (localRes.items ?? []).map((i) => String(i.name ?? "")).filter(Boolean);
+      const mcpNames = (mcpRes.items ?? []).map((i) => String(i.name ?? "").trim()).filter(Boolean);
+      const result = verifyToolsAgainstCatalogs(list, localNames, mcpNames);
+      void ctx.telemetry.increment(result.ok ? "skill_tools_check_ok" : "skill_tools_check_fail");
+      return result.ok ? ok("All skill tools exist in local or MCP catalogs.", result) : fail(`Missing tools: ${result.missing.join(", ")}`, result);
+    } catch (e) {
+      void ctx.telemetry.increment("skill_tools_check_fail");
+      return fail(String(e));
+    }
+  });
+  const alias = (tool, localName, description) => {
     server.registerTool(tool, {
       description,
       inputSchema: {
         arguments: external_exports.record(external_exports.unknown()).optional(),
         session_id: external_exports.string().optional(),
-        agent_id: external_exports.string().optional(),
-        ...extraSchema
+        agent_id: external_exports.string().optional()
       }
     }, async (input) => {
-      const sessionId = await resolveDevSessionId(ctx, input.session_id);
       try {
-        const result = await ctx.api.agentJSON(
-          "POST",
-          `/api/local-tools/${encodeURIComponent(localName)}/call`,
+        const result = await callLocal(
+          ctx,
+          localName,
+          input.arguments ?? {},
           {
-            arguments: input.arguments ?? {},
-            session_id: sessionId,
+            session_id: input.session_id,
             agent_id: input.agent_id,
             resolve_workspace: true
           }
         );
-        const isError = Boolean(result?.is_error);
-        if (isError) return fail(`Local tool ${localName} returned an error.`, { result });
+        if (result?.is_error) {
+          return fail(`Local tool ${localName} returned an error.`, { result });
+        }
         return ok(`Called ${localName}.`, { result });
       } catch (e) {
         return fail(String(e));
       }
     });
   };
-  alias(
-    "yaaif_skill_validate_module",
-    "skill_validate_module",
-    "Validate a skill module via platform local tool skill_validate_module (prefer over weak REST validate)."
-  );
-  alias(
-    "yaaif_skill_develop",
-    "skill_develop",
-    "Run platform skill_develop local tool (guided skill edits)."
-  );
-  alias(
-    "yaaif_skill_guided_draft",
-    "skill_create_guided_draft",
-    "Create a guided skill draft via platform local tool skill_create_guided_draft."
-  );
-  alias(
-    "yaaif_skill_mcp_tool_catalog",
-    "skill_mcp_tool_catalog",
-    "List MCP tool catalog entries available for skill tool linking (platform local tool)."
-  );
-  alias(
-    "yaaif_files_list",
-    "files_list",
-    "List ingested files for the Cursor/dev session (platform local tool files_list). Call yaaif_dev_session_ensure first."
-  );
-  alias(
-    "yaaif_file_load_context",
-    "file_load_context",
-    "Load extracted file text via platform local tool file_load_context."
-  );
+  alias("yaaif_skill_validate_module", "skill_validate_module", "Validate a skill module via platform local tool skill_validate_module.");
+  alias("yaaif_skill_develop", "skill_develop", "Run platform skill_develop local tool.");
+  alias("yaaif_skill_guided_draft", "skill_create_guided_draft", "Create a guided skill draft via skill_create_guided_draft.");
+  alias("yaaif_skill_mcp_tool_catalog", "skill_mcp_tool_catalog", "List MCP tools for skill linking (skill_mcp_tool_catalog).");
+  alias("yaaif_skill_update_module_files", "skill_update_module_files", "Create/update/delete skill module files via skill_update_module_files.");
+  alias("yaaif_skill_edit_section", "skill_edit_section", "Edit a SKILL.md section via skill_edit_section.");
+  alias("yaaif_list_ambient_workflows", "list_ambient_workflows", "List ambient workflows via platform local tool.");
+  alias("yaaif_trigger_ambient_workflow", "trigger_ambient_workflow", "Trigger an ambient workflow via platform local tool.");
+  alias("yaaif_files_list", "files_list", "List ingested files for the Cursor/dev session. Call yaaif_dev_session_ensure first.");
+  alias("yaaif_file_load_context", "file_load_context", "Load extracted file text via file_load_context.");
 }
 
 // src/tools/register.ts
@@ -24925,7 +25076,7 @@ async function main() {
   const telemetry = new TelemetryStore(cfg.cursorHome);
   const server = new McpServer({
     name: "yaaif-cursor",
-    version: "0.7.0"
+    version: "0.8.0"
   });
   registerAllTools(server, { cfg, auth, api, profiles, plans, telemetry });
   const transport = new StdioServerTransport();

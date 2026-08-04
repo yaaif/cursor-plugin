@@ -80,7 +80,7 @@ MCP bridge is TypeScript (`packages/mcp`), launched via:
 After npm publish:
 
 ```bash
-npx -y @yaaif/cursor-mcp@0.7.0
+npx -y @yaaif/cursor-mcp@0.8.0
 ```
 
 Requires **Node.js ≥ 20**. No Go toolchain.
@@ -103,9 +103,11 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 |------|--------|
 | `yaaif_catalog_overview` | Snapshot of agents, skills, MCPs, ambient, local tools |
 | `yaaif_local_tools_list` / `yaaif_local_tool_get` / `yaaif_local_tool_call` | Agent-service built-in local tools (skill lifecycle, files, ambient, …) |
-| `yaaif_dev_session_ensure` | Cursor authoring session for `files_*` / state locals |
-| `yaaif_skill_validate_module` / `yaaif_skill_develop` / `yaaif_skill_guided_draft` | Convenience wrappers for skill lifecycle locals |
-| `yaaif_doctor` | Profile + OIDC + health + session + catalog + local tools |
+| `yaaif_dev_session_ensure` | Cursor authoring session (auto default skills agent) |
+| `yaaif_skill_tools_check` | Verify skill tools against local + MCP catalogs |
+| `yaaif_skill_validate_module` / `yaaif_skill_develop` / `yaaif_skill_guided_draft` / `yaaif_skill_update_module_files` / `yaaif_skill_edit_section` | Skill lifecycle locals |
+| `yaaif_list_ambient_workflows` / `yaaif_trigger_ambient_workflow` | Ambient locals |
+| `yaaif_doctor` | Profile + OIDC + health + session + catalog + local tools smoke |
 | `yaaif_plan_verify` / `yaaif_plan_dry_run` / `yaaif_plan_execution_*` | Plan verify / dry-run / resume |
 | `yaaif_platform_export` | Shell exports + Cursor variables JSON |
 | `yaaif_agent_list` / `yaaif_agent_get` / `yaaif_agent_create` / `yaaif_agent_update` | Agents |
@@ -121,6 +123,7 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 - [Getting started](docs/getting-started.md)
 - [Configure environment](docs/configure-environment.md)
 - [Partner workflows](docs/partner-workflows.md)
+- [Platform local tools](docs/platform-local-tools.md)
 - [Threat model](docs/threat-model.md)
 - [SECURITY.md](SECURITY.md)
 

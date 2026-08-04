@@ -36,11 +36,12 @@ Read [references/frontmatter.md](references/frontmatter.md). Prefer lean chat sk
 1. Discover: `yaaif_local_tools_list` (`family: skill`) and/or `yaaif-platform-tools`
 2. Search: `yaaif_local_tool_call` → `skill_search` / `skill_search_workspace`
 3. Draft: `yaaif_skill_guided_draft` (or `skill_create_guided_draft`)
-4. Edit: `yaaif_local_tool_call` → `skill_update_module_files` / `skill_edit_section` / `yaaif_skill_develop`
-5. Link tools: `yaaif_skill_mcp_tool_catalog` + `skill_tool_link_manager`
-6. Validate: `yaaif_skill_validate_module` (strict) — prefer over `yaaif_skill_validate`
-7. Map: `yaaif_skill_map_agents_merge`
-8. `yaaif_skill_refresh` then `yaaif_skill_runtime_reload`
+4. Edit: `yaaif_skill_update_module_files` / `yaaif_skill_edit_section` / `yaaif_skill_develop`
+5. **Check tools:** `yaaif_skill_tools_check` with the draft markdown (or `tools[]`) — must pass
+6. Link tools: `yaaif_skill_mcp_tool_catalog` + `skill_tool_link_manager`
+7. Validate: `yaaif_skill_validate_module` (strict) — prefer over `yaaif_skill_validate`
+8. Map: `yaaif_skill_map_agents_merge`
+9. `yaaif_skill_refresh` then `yaaif_skill_runtime_reload`
 
 ### Fallback (REST only)
 
