@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.10.2
+
+- Doctor: `ops_telemetry` check (flow-events proxy / metrics RBAC)
+- Unified `yaaif_ops_telemetry` (`resource=messages|events|flow_events|insights|desktop_logs|ambient_logs`); keep thin aliases
+- Response shaping: `summary_only`, `max_chars`, `max_items` on ops tools
+- Ops skill: fixed drill-down order + escalation template
+- Local install docs: rsync + Add local plugin (symlink logo caveat); marketplace logo QA
+- configure-environment: ClickHouse requirement for ops telemetry on local/hybrid
+- CI asserts `yaaif_ops_telemetry`; unit tests for ops shaping
+
+## 0.10.1
+
+- Telemetry RO via ops facade: `yaaif_ops_session_messages|events`, `yaaif_ops_flow_events`, `yaaif_ops_session_insights`, `yaaif_ops_desktop_worker_logs`, `yaaif_ops_ambient_worker_logs`
+- Requires agent-service proxies under `GET /api/ops/*` (api-server → telemetry-service); still no direct telemetry URL in the plugin
+
+## 0.10.0
+
+- Ops support hardened against production agent-service `/api/ops`:
+  - Prefer summaries; `include_raw` requires `ops.support.raw`
+  - Surface `diagnostics_version`, `partial_errors`, `cache_hit`
+  - Docs: RBAC `ops.support.read` + downstream metrics/desktop/harness reads
+- Align DEVELOPER role expectations with ops.support.read + metrics/desktop/harness read
+
 ## 0.9.0
 
 - Read-only ops support: `yaaif_ops_analyze` / `correlate` / session / ambient / desktop tools

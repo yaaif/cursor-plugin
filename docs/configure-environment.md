@@ -67,6 +67,18 @@ Or set `extra_ca_file` / `client_cert_file` / `client_key_file` on a custom prof
 
 After `yaaif_platform_use`, call `yaaif_platform_export` for ready-to-paste `export …` lines and a Cursor plugin variables JSON map.
 
+## Ops / telemetry (local-hybrid & local)
+
+Read-only ops tools (`yaaif_ops_*`, `/yaaif-ops`) call **agent-service** `/api/ops/*`, which proxies api-server → **telemetry-service**.
+
+For message/event/log drill-down to work on a local stack:
+
+- `TELEMETRY_STORAGE=clickhouse` on api-server
+- telemetry-service reachable (default `http://localhost:8078`)
+- caller holds `api.metrics.read` (and `ops.support.read` or sessions/ambient read)
+
+`yaaif_doctor` checks `ops_api` (correlate mounted) and `ops_telemetry` (flow-events proxy mounted). A 403 on `ops_telemetry` still counts as route-ok but means the role needs metrics read.
+
 ## Validation
 
-Call `yaaif_doctor` or `yaaif_ensure_session`. Expect OIDC discovery OK, issuer match, and a selected tenant.
+Call `yaaif_doctor` or `yaaif_ensure_session`. Expect OIDC discovery OK, issuer match, a selected tenant, and (for ops) `ops_api` / `ops_telemetry` green.

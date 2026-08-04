@@ -59,15 +59,25 @@ export YAAIF_DEFAULT_TENANT_ID=<tenant-uuid>   # optional
 
 Do not point OIDC at `.local` if Keycloak’s hostname is `.com` — that breaks the login cookie (`Restart login cookie not found`). See [configure-environment.md](docs/configure-environment.md).
 
-### Local symlink (developers)
+### Local install (developers)
+
+Prefer a **real directory copy** (Cursor can ignore/break on symlinks for logos + plugin discovery):
 
 ```bash
 git clone https://github.com/yaaif/cursor-plugin.git
 cd cursor-plugin/packages/mcp && npm install && npm run build && cd ../..
-ln -sf "$PWD" ~/.cursor/plugins/local/yaaif
+mkdir -p ~/.cursor/plugins/local
+rsync -a --delete --exclude '.git' --exclude 'packages/mcp/node_modules' \
+  "$PWD/" ~/.cursor/plugins/local/yaaif/
 ```
 
-Reload Cursor. For local platform stacks, use the `platform.yaaif.local` exports above (see [configure-environment.md](docs/configure-environment.md)).
+Then in Cursor **Plugins → + Add → Add local plugin** and select `~/.cursor/plugins/local/yaaif` (or the clone path). Reload the window.
+
+Logo: `assets/logo.svg` (also `assets/logo.png`). Relative path in `plugin.json` — do not rely on a GitHub raw URL for local installs.
+
+Symlink (`ln -sf "$PWD" ~/.cursor/plugins/local/yaaif`) can work for MCP/skills but often fails logo rendering; use rsync if the icon stays a generic cube.
+
+For local platform stacks, see [configure-environment.md](docs/configure-environment.md) (`local-hybrid` + ClickHouse for ops telemetry).
 
 ## Runtime
 
@@ -80,7 +90,7 @@ MCP bridge is TypeScript (`packages/mcp`), launched via:
 After npm publish:
 
 ```bash
-npx -y @yaaif/cursor-mcp@0.9.0
+npx -y @yaaif/cursor-mcp@0.10.2
 ```
 
 Requires **Node.js ≥ 20**. No Go toolchain.
@@ -109,7 +119,7 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 | `yaaif_skill_validate_module` / `yaaif_skill_develop` / `yaaif_skill_guided_draft` / `yaaif_skill_update_module_files` / `yaaif_skill_edit_section` | Skill lifecycle locals |
 | `yaaif_list_ambient_workflows` / `yaaif_trigger_ambient_workflow` | Ambient locals |
 | `yaaif_ops_analyze` / `yaaif_ops_correlate` / `yaaif_ops_*_get` | Read-only ops incident correlation + failures |
-| `yaaif_doctor` | Profile + OIDC + health + session + catalog + local tools + ops_api |
+| `yaaif_doctor` | Profile + OIDC + health + session + catalog + local tools + ops_api + ops_telemetry |
 | `yaaif_plan_verify` / `yaaif_plan_dry_run` / `yaaif_plan_execution_*` | Plan verify / dry-run / resume |
 | `yaaif_platform_export` | Shell exports + Cursor variables JSON |
 | `yaaif_agent_list` / `yaaif_agent_get` / `yaaif_agent_create` / `yaaif_agent_update` | Agents |

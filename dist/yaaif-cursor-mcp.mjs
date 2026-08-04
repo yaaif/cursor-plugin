@@ -98,12 +98,12 @@ var require_code = __commonJS({
     exports._ = _;
     var plus = new _Code("+");
     function str(strs, ...args) {
-      const expr = [safeStringify(strs[0])];
+      const expr = [safeStringify2(strs[0])];
       let i = 0;
       while (i < args.length) {
         expr.push(plus);
         addCodeArg(expr, args[i]);
-        expr.push(plus, safeStringify(strs[++i]));
+        expr.push(plus, safeStringify2(strs[++i]));
       }
       optimize(expr);
       return new _Code(expr);
@@ -155,16 +155,16 @@ var require_code = __commonJS({
     }
     exports.strConcat = strConcat;
     function interpolate(x) {
-      return typeof x == "number" || typeof x == "boolean" || x === null ? x : safeStringify(Array.isArray(x) ? x.join(",") : x);
+      return typeof x == "number" || typeof x == "boolean" || x === null ? x : safeStringify2(Array.isArray(x) ? x.join(",") : x);
     }
     function stringify(x) {
-      return new _Code(safeStringify(x));
+      return new _Code(safeStringify2(x));
     }
     exports.stringify = stringify;
-    function safeStringify(x) {
+    function safeStringify2(x) {
       return JSON.stringify(x).replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
     }
-    exports.safeStringify = safeStringify;
+    exports.safeStringify = safeStringify2;
     function getProperty(key) {
       return typeof key == "string" && exports.IDENTIFIER.test(key) ? new _Code(`.${key}`) : _`[${key}]`;
     }
@@ -23896,6 +23896,19 @@ function registerDoctorTools(server, ctx) {
         add("ops_api", routeOk, { error: msg.slice(0, 240) });
         void ctx.telemetry.increment(routeOk ? "doctor_ops_api_ok" : "doctor_ops_api_fail");
       }
+      try {
+        await ctx.api.agentJSON("GET", "/api/ops/flow-events");
+        add("ops_telemetry", true, { note: "unexpected 200 without request_id" });
+        void ctx.telemetry.increment("doctor_ops_telemetry_ok");
+      } catch (e) {
+        const msg = String(e);
+        const routeOk = /\b400\b/.test(msg) || /request_id is required/i.test(msg) || /\b403\b/.test(msg);
+        add("ops_telemetry", routeOk, {
+          error: msg.slice(0, 240),
+          hint: routeOk && /\b403\b/.test(msg) ? "Route exists; grant api.metrics.read for telemetry drill-down" : void 0
+        });
+        void ctx.telemetry.increment(routeOk ? "doctor_ops_telemetry_ok" : "doctor_ops_telemetry_fail");
+      }
     }
     const failed = checks.filter((c) => !c.ok);
     const summary = failed.length ? `Doctor found ${failed.length} issue(s): ${failed.map((f) => f.name).join(", ")}` : "Doctor checks passed.";
@@ -24232,6 +24245,102 @@ function registerLocalTools(server, ctx) {
   alias("yaaif_file_load_context", "file_load_context", "Load extracted file text via file_load_context.");
 }
 
+// src/lib/opsShape.ts
+var DEFAULT_MAX_CHARS = 48e3;
+var DEFAULT_MAX_ITEMS = 40;
+function shapeOpsPayload(result, opts = {}) {
+  const maxChars = opts.max_chars && opts.max_chars > 0 ? opts.max_chars : DEFAULT_MAX_CHARS;
+  const maxItems = opts.max_items && opts.max_items > 0 ? opts.max_items : DEFAULT_MAX_ITEMS;
+  let shaped = result;
+  if (opts.summary_only && isRecord(result)) {
+    shaped = summarizeOpsRecord(result);
+  }
+  shaped = boundArrays(shaped, maxItems);
+  const encoded = safeStringify(shaped);
+  if (encoded.length <= maxChars) {
+    return shaped;
+  }
+  return {
+    truncated: true,
+    max_chars: maxChars,
+    preview: encoded.slice(0, maxChars) + "\u2026",
+    hint: "Pass summary_only=true or lower limit; use include_raw only when needed."
+  };
+}
+function summarizeOpsRecord(result) {
+  const out = {
+    diagnostics_version: result.diagnostics_version,
+    seed: result.seed,
+    links: result.links,
+    status: result.status,
+    failures: result.failures,
+    next_steps: result.next_steps,
+    partial_errors: result.partial_errors,
+    include_raw: result.include_raw,
+    cache_hit: result.cache_hit,
+    analyzed_at: result.analyzed_at,
+    count: result.count,
+    total: result.total,
+    session_id: result.session_id,
+    request_id: result.request_id,
+    desktop_run_id: result.desktop_run_id,
+    ambient_run_id: result.ambient_run_id
+  };
+  for (const key of ["items", "messages", "events", "logs", "timeline"]) {
+    if (Array.isArray(result[key])) {
+      out[key] = result[key];
+    }
+  }
+  return stripUndefined(out);
+}
+function boundArrays(value, maxItems) {
+  if (Array.isArray(value)) {
+    if (value.length <= maxItems) {
+      return value.map((v) => boundArrays(v, maxItems));
+    }
+    return {
+      items: value.slice(0, maxItems).map((v) => boundArrays(v, maxItems)),
+      truncated_items: true,
+      original_count: value.length
+    };
+  }
+  if (!isRecord(value)) {
+    return value;
+  }
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (Array.isArray(v) && ["items", "messages", "events", "logs", "failures", "timeline", "next_steps"].includes(k)) {
+      if (v.length > maxItems) {
+        out[k] = v.slice(0, maxItems).map((item) => boundArrays(item, maxItems));
+        out[`${k}_truncated`] = true;
+        out[`${k}_original_count`] = v.length;
+      } else {
+        out[k] = v.map((item) => boundArrays(item, maxItems));
+      }
+      continue;
+    }
+    out[k] = boundArrays(v, maxItems);
+  }
+  return out;
+}
+function isRecord(v) {
+  return Boolean(v) && typeof v === "object" && !Array.isArray(v);
+}
+function stripUndefined(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== void 0) out[k] = v;
+  }
+  return out;
+}
+function safeStringify(v) {
+  try {
+    return JSON.stringify(v) ?? "";
+  } catch {
+    return String(v);
+  }
+}
+
 // src/tools/registerOpsSupport.ts
 function opsQuery(params) {
   const qs = new URLSearchParams();
@@ -24240,6 +24349,82 @@ function opsQuery(params) {
   }
   const s = qs.toString();
   return s ? `?${s}` : "";
+}
+var shapeOptsSchema = {
+  summary_only: external_exports.boolean().optional().describe("Prefer compact links/failures (default true for analyze)"),
+  max_chars: external_exports.number().int().positive().optional().describe("Soft JSON size cap for the tool result"),
+  max_items: external_exports.number().int().positive().optional().describe("Cap items/events/logs arrays (default 40)")
+};
+function shapedOk(summary, result, opts, defaults) {
+  const merged = {
+    summary_only: opts.summary_only ?? defaults?.summary_only,
+    max_chars: opts.max_chars ?? defaults?.max_chars,
+    max_items: opts.max_items ?? defaults?.max_items
+  };
+  return ok(summary, { result: shapeOpsPayload(result, merged) });
+}
+var telemetryResource = external_exports.enum([
+  "messages",
+  "events",
+  "flow_events",
+  "insights",
+  "desktop_logs",
+  "ambient_logs"
+]);
+async function fetchTelemetry(ctx, resource, args) {
+  const q = {
+    limit: args.limit != null ? String(args.limit) : void 0,
+    offset: args.offset != null ? String(args.offset) : void 0,
+    include_raw: args.include_raw ? "true" : void 0
+  };
+  switch (resource) {
+    case "messages": {
+      if (!args.session_id?.trim()) throw new Error("session_id is required for messages");
+      return ctx.api.agentJSON(
+        "GET",
+        `/api/ops/sessions/${encodeURIComponent(args.session_id)}/messages${opsQuery(q)}`
+      );
+    }
+    case "events": {
+      if (!args.session_id?.trim()) throw new Error("session_id is required for events");
+      return ctx.api.agentJSON(
+        "GET",
+        `/api/ops/sessions/${encodeURIComponent(args.session_id)}/events${opsQuery(q)}`
+      );
+    }
+    case "flow_events": {
+      if (!args.request_id?.trim()) throw new Error("request_id is required for flow_events");
+      return ctx.api.agentJSON(
+        "GET",
+        `/api/ops/flow-events${opsQuery({ ...q, request_id: args.request_id })}`
+      );
+    }
+    case "insights": {
+      if (!args.session_id?.trim()) throw new Error("session_id is required for insights");
+      const qs = new URLSearchParams();
+      for (const id of args.session_id.split(",")) {
+        if (id.trim()) qs.append("session_id", id.trim());
+      }
+      if (args.include_raw) qs.set("include_raw", "true");
+      return ctx.api.agentJSON("GET", `/api/ops/flow-session-insights?${qs}`);
+    }
+    case "desktop_logs": {
+      if (!args.desktop_run_id?.trim()) throw new Error("desktop_run_id is required for desktop_logs");
+      return ctx.api.agentJSON(
+        "GET",
+        `/api/ops/desktop-worker-logs${opsQuery({ ...q, desktop_run_id: args.desktop_run_id })}`
+      );
+    }
+    case "ambient_logs": {
+      if (!args.ambient_run_id?.trim()) throw new Error("ambient_run_id is required for ambient_logs");
+      return ctx.api.agentJSON(
+        "GET",
+        `/api/ops/ambient-worker-logs${opsQuery({ ...q, ambient_run_id: args.ambient_run_id })}`
+      );
+    }
+    default:
+      throw new Error(`unknown telemetry resource: ${resource}`);
+  }
 }
 function registerOpsSupportTools(server, ctx) {
   server.registerTool("yaaif_ops_correlate", {
@@ -24251,7 +24436,8 @@ function registerOpsSupportTools(server, ctx) {
       request_id: external_exports.string().optional(),
       harness_run_id: external_exports.string().optional(),
       include_raw: external_exports.boolean().optional(),
-      analyze: external_exports.boolean().optional()
+      analyze: external_exports.boolean().optional(),
+      ...shapeOptsSchema
     }
   }, async (args) => {
     try {
@@ -24265,20 +24451,22 @@ function registerOpsSupportTools(server, ctx) {
         analyze: args.analyze ? "true" : void 0
       })}`;
       const result = await ctx.api.agentJSON("GET", path2);
-      return ok("Correlated ops incident.", { result });
+      return shapedOk("Correlated ops incident.", result, args, { summary_only: true });
     } catch (e) {
       return fail(String(e));
     }
   });
   server.registerTool("yaaif_ops_analyze", {
-    description: "READ-ONLY: one-shot incident analysis \u2014 correlate IDs, rank failures, and return next_steps for operators.",
+    description: "READ-ONLY: one-shot incident analysis \u2014 correlate IDs, rank failures, and return next_steps. Prefer this first; then yaaif_ops_telemetry for drill-down.",
     inputSchema: {
       session_id: external_exports.string().optional(),
       ambient_run_id: external_exports.string().optional(),
       desktop_run_id: external_exports.string().optional(),
       request_id: external_exports.string().optional(),
       harness_run_id: external_exports.string().optional(),
-      include_raw: external_exports.boolean().optional()
+      include_raw: external_exports.boolean().optional().describe("Requires ops.support.raw; default false"),
+      include_live_diag: external_exports.boolean().optional(),
+      ...shapeOptsSchema
     }
   }, async (args) => {
     try {
@@ -24288,11 +24476,12 @@ function registerOpsSupportTools(server, ctx) {
         desktop_run_id: args.desktop_run_id,
         request_id: args.request_id,
         harness_run_id: args.harness_run_id,
-        include_raw: args.include_raw ? "true" : void 0
+        include_raw: args.include_raw ? "true" : void 0,
+        include_live_diag: args.include_live_diag ? "true" : void 0
       })}`;
       const result = await ctx.api.agentJSON("GET", path2);
       void ctx.telemetry.increment("ops_analyze_ok");
-      return ok("Analyzed ops incident.", { result });
+      return shapedOk("Analyzed ops incident.", result, args, { summary_only: true });
     } catch (e) {
       void ctx.telemetry.increment("ops_analyze_fail");
       return fail(String(e));
@@ -24300,42 +24489,42 @@ function registerOpsSupportTools(server, ctx) {
   });
   server.registerTool("yaaif_ops_session_get", {
     description: "READ-ONLY: LLM/flow session metrics detail + derived failure findings for a session_id.",
-    inputSchema: { session_id: external_exports.string() }
-  }, async ({ session_id }) => {
+    inputSchema: { session_id: external_exports.string(), ...shapeOptsSchema }
+  }, async (args) => {
     try {
       const result = await ctx.api.agentJSON(
         "GET",
-        `/api/ops/sessions/${encodeURIComponent(session_id)}`
+        `/api/ops/sessions/${encodeURIComponent(args.session_id)}`
       );
-      return ok("Fetched ops session analysis.", { result });
+      return shapedOk("Fetched ops session analysis.", result, args, { summary_only: true });
     } catch (e) {
       return fail(String(e));
     }
   });
   server.registerTool("yaaif_ops_ambient_run_get", {
     description: "READ-ONLY: ambient workflow run detail + diagnostic failures for a run_id.",
-    inputSchema: { run_id: external_exports.string() }
-  }, async ({ run_id }) => {
+    inputSchema: { run_id: external_exports.string(), ...shapeOptsSchema }
+  }, async (args) => {
     try {
       const result = await ctx.api.agentJSON(
         "GET",
-        `/api/ops/ambient-runs/${encodeURIComponent(run_id)}`
+        `/api/ops/ambient-runs/${encodeURIComponent(args.run_id)}`
       );
-      return ok("Fetched ops ambient run analysis.", { result });
+      return shapedOk("Fetched ops ambient run analysis.", result, args, { summary_only: true });
     } catch (e) {
       return fail(String(e));
     }
   });
   server.registerTool("yaaif_ops_desktop_run_get", {
     description: "READ-ONLY: desktop worker run detail + failure findings for a run_id.",
-    inputSchema: { run_id: external_exports.string() }
-  }, async ({ run_id }) => {
+    inputSchema: { run_id: external_exports.string(), ...shapeOptsSchema }
+  }, async (args) => {
     try {
       const result = await ctx.api.agentJSON(
         "GET",
-        `/api/ops/desktop-runs/${encodeURIComponent(run_id)}`
+        `/api/ops/desktop-runs/${encodeURIComponent(args.run_id)}`
       );
-      return ok("Fetched ops desktop run analysis.", { result });
+      return shapedOk("Fetched ops desktop run analysis.", result, args, { summary_only: true });
     } catch (e) {
       return fail(String(e));
     }
@@ -24344,13 +24533,92 @@ function registerOpsSupportTools(server, ctx) {
     description: "READ-ONLY: list desktop runs for a session_id (optional status filter).",
     inputSchema: {
       session_id: external_exports.string(),
-      status: external_exports.string().optional()
+      status: external_exports.string().optional(),
+      ...shapeOptsSchema
     }
-  }, async ({ session_id, status }) => {
+  }, async (args) => {
     try {
-      const path2 = `/api/ops/desktop-runs${opsQuery({ session_id, status })}`;
+      const path2 = `/api/ops/desktop-runs${opsQuery({ session_id: args.session_id, status: args.status })}`;
       const result = await ctx.api.agentJSON("GET", path2);
-      return ok("Listed ops desktop runs.", { result });
+      return shapedOk("Listed ops desktop runs.", result, args);
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_ops_telemetry", {
+    description: "READ-ONLY: unified telemetry drill-down via agent-service /api/ops (proxies telemetry-service). resource=messages|events|flow_events|insights|desktop_logs|ambient_logs. Prefer after yaaif_ops_analyze.",
+    inputSchema: {
+      resource: telemetryResource,
+      session_id: external_exports.string().optional().describe("Required for messages, events, insights (comma-separated ok for insights)"),
+      request_id: external_exports.string().optional().describe("Required for flow_events"),
+      desktop_run_id: external_exports.string().optional().describe("Required for desktop_logs"),
+      ambient_run_id: external_exports.string().optional().describe("Required for ambient_logs"),
+      limit: external_exports.number().int().positive().optional(),
+      offset: external_exports.number().int().nonnegative().optional(),
+      include_raw: external_exports.boolean().optional(),
+      ...shapeOptsSchema
+    }
+  }, async (args) => {
+    try {
+      const result = await fetchTelemetry(ctx, args.resource, args);
+      void ctx.telemetry.increment("ops_telemetry_ok");
+      return shapedOk(`Fetched ops telemetry (${args.resource}).`, result, args);
+    } catch (e) {
+      void ctx.telemetry.increment("ops_telemetry_fail");
+      return fail(String(e));
+    }
+  });
+  const alias = (name, resource, idField, description) => {
+    server.registerTool(name, {
+      description: `${description} Alias of yaaif_ops_telemetry resource=${resource}.`,
+      inputSchema: {
+        [idField]: external_exports.string(),
+        limit: external_exports.number().int().positive().optional(),
+        offset: external_exports.number().int().nonnegative().optional(),
+        include_raw: external_exports.boolean().optional(),
+        ...shapeOptsSchema
+      }
+    }, async (args) => {
+      try {
+        const result = await fetchTelemetry(ctx, resource, {
+          session_id: typeof args.session_id === "string" ? args.session_id : void 0,
+          request_id: typeof args.request_id === "string" ? args.request_id : void 0,
+          desktop_run_id: typeof args.desktop_run_id === "string" ? args.desktop_run_id : void 0,
+          ambient_run_id: typeof args.ambient_run_id === "string" ? args.ambient_run_id : void 0,
+          limit: typeof args.limit === "number" ? args.limit : void 0,
+          offset: typeof args.offset === "number" ? args.offset : void 0,
+          include_raw: Boolean(args.include_raw)
+        });
+        return shapedOk(`Fetched ops telemetry (${resource}).`, result, {
+          summary_only: Boolean(args.summary_only),
+          max_chars: typeof args.max_chars === "number" ? args.max_chars : void 0,
+          max_items: typeof args.max_items === "number" ? args.max_items : void 0
+        });
+      } catch (e) {
+        return fail(String(e));
+      }
+    });
+  };
+  alias("yaaif_ops_session_messages", "messages", "session_id", "READ-ONLY: LLM transcript messages.");
+  alias("yaaif_ops_session_events", "events", "session_id", "READ-ONLY: LLM session events.");
+  alias("yaaif_ops_flow_events", "flow_events", "request_id", "READ-ONLY: flow-events by request_id.");
+  alias("yaaif_ops_desktop_worker_logs", "desktop_logs", "desktop_run_id", "READ-ONLY: desktop worker logs.");
+  alias("yaaif_ops_ambient_worker_logs", "ambient_logs", "ambient_run_id", "READ-ONLY: ambient worker logs.");
+  server.registerTool("yaaif_ops_session_insights", {
+    description: "READ-ONLY: flow-session insights. Alias of yaaif_ops_telemetry resource=insights.",
+    inputSchema: {
+      session_id: external_exports.union([external_exports.string(), external_exports.array(external_exports.string())]),
+      include_raw: external_exports.boolean().optional(),
+      ...shapeOptsSchema
+    }
+  }, async (args) => {
+    try {
+      const ids = Array.isArray(args.session_id) ? args.session_id.join(",") : args.session_id;
+      const result = await fetchTelemetry(ctx, "insights", {
+        session_id: ids,
+        include_raw: args.include_raw
+      });
+      return shapedOk("Fetched ops session insights.", result, args);
     } catch (e) {
       return fail(String(e));
     }

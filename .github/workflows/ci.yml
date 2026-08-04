@@ -37,6 +37,9 @@ jobs:
           tools=[json.loads(l) for l in out.splitlines() if l.strip()]
           names=[t["name"] for t in [m for m in tools if m.get("id")==2][0]["result"]["tools"]]
           assert "yaaif_configure_check" in names
-          assert len(names) >= 33
+          assert "yaaif_ops_analyze" in names
+          assert "yaaif_ops_telemetry" in names
+          assert "yaaif_doctor" in names
+          assert len(names) >= 40
           print("ok", len(names))
           PY
