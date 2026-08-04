@@ -31,10 +31,11 @@ See [references/patterns.md](references/patterns.md). Default to **Linear**.
 ## Install order
 
 1. `yaaif_agent_create` with `agent_type: "workflow"`
-2. `yaaif_ambient_agent_create` (`mode: "active"`, async on)
-3. `yaaif_ambient_workflow_create` with `workflow_graph` + `trigger_rules`
-4. Optional chat skill via `yaaif-create-skill` including `list_ambient_workflows` + `trigger_ambient_workflow`
-5. `yaaif_ambient_test_trigger` → `yaaif_ambient_runs_list`
+2. If Linear+approval / HITL: `yaaif_approval_strategy_create` (`publish: true`) or reuse via `yaaif_approval_strategies_list`; set `approval_strategy_id` on approval nodes
+3. `yaaif_ambient_agent_create` (`mode: "active"`, async on)
+4. `yaaif_ambient_workflow_create` with `workflow_graph` + `trigger_rules`
+5. Optional chat skill via `yaaif-create-skill` including `list_ambient_workflows` + `trigger_ambient_workflow`
+6. `yaaif_ambient_test_trigger` → `yaaif_ambient_runs_list`
 
 ## Hand-off
 

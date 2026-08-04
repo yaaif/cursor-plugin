@@ -25,6 +25,8 @@ export YAAIF_OIDC_AUTHORITY=https://platform.yaaif.ai/auth/realms/yaaif
 export YAAIF_OIDC_CLIENT_ID=yaaif-cursor
 export YAAIF_API_BASE_URL=https://platform.yaaif.ai
 export YAAIF_AGENT_BASE_URL=https://platform.yaaif.ai/agent-service
+export YAAIF_CONTROL_PLANE_BASE_URL=https://platform.yaaif.ai/control-plane-service
+export YAAIF_APPROVAL_BASE_URL=https://platform.yaaif.ai/approval-service
 export YAAIF_DEFAULT_TENANT_ID=<tenant-uuid>   # optional
 ```
 
@@ -33,6 +35,8 @@ export YAAIF_DEFAULT_TENANT_ID=<tenant-uuid>   # optional
 | `YAAIF_OIDC_AUTHORITY` | `https://platform.yaaif.ai/auth/realms/yaaif` |
 | `YAAIF_API_BASE_URL` | `https://platform.yaaif.ai` |
 | `YAAIF_AGENT_BASE_URL` | `https://platform.yaaif.ai/agent-service` |
+| `YAAIF_CONTROL_PLANE_BASE_URL` | `https://platform.yaaif.ai/control-plane-service` |
+| `YAAIF_APPROVAL_BASE_URL` | `https://platform.yaaif.ai/approval-service` |
 | `YAAIF_DEFAULT_TENANT_ID` | optional UUID |
 | `YAAIF_OIDC_CLIENT_ID` | `yaaif-cursor` |
 
@@ -73,7 +77,7 @@ MCP bridge is TypeScript (`packages/mcp`), launched via:
 After npm publish:
 
 ```bash
-npx -y @yaaif/cursor-mcp@0.2.0
+npx -y @yaaif/cursor-mcp@0.4.0
 ```
 
 Requires **Node.js ≥ 20**. No Go toolchain.
@@ -93,10 +97,14 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 | Tool | Purpose |
 |------|--------|
 | `yaaif_catalog_overview` | Snapshot of agents, skills, MCPs, ambient |
-| `yaaif_agent_list` / `yaaif_agent_get` | Agents |
+| `yaaif_plan_verify` / `yaaif_plan_dry_run` | Plan checklist diff / dry-run actions |
+| `yaaif_agent_list` / `yaaif_agent_get` / `yaaif_agent_create` / `yaaif_agent_update` | Agents |
+| `yaaif_skill_map_agents_merge` | Safe skill↔agent mapping (union) |
 | `yaaif_skill_list` / `yaaif_skill_get` / `yaaif_skill_read_file` / `yaaif_skill_file_tree` | Skills + files |
 | `yaaif_mcp_tools_list` / `yaaif_mcp_tool_get` / `yaaif_mcp_servers_list` / `yaaif_mcp_server_get` / `yaaif_mcp_deployments_list` | MCP catalog + deployments |
 | `yaaif_ambient_agent_list` / `yaaif_ambient_agent_get` / `yaaif_ambient_workflow_list` / `yaaif_ambient_workflow_get` / `yaaif_ambient_runs_list` | Ambient |
+| `yaaif_approval_strategies_list` / `yaaif_approval_strategy_create` / `yaaif_approval_strategy_publish` | HITL strategies |
+| `yaaif_desktop_workers_list` / `yaaif_desktop_skill_mapping_set` | Desktop workers + skill maps |
 
 ## Docs
 

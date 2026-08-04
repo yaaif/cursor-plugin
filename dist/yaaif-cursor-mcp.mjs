@@ -21887,6 +21887,12 @@ var ApiClient = class {
   apiJSON(method, path2, body) {
     return this.doJSON(this.cfg.apiBaseUrl, method, path2, body);
   }
+  controlPlaneJSON(method, path2, body) {
+    return this.doJSON(this.cfg.controlPlaneBaseUrl, method, path2, body);
+  }
+  approvalJSON(method, path2, body) {
+    return this.doJSON(this.cfg.approvalBaseUrl, method, path2, body);
+  }
   async doJSON(base, method, path2, body) {
     const { token, session } = await this.auth.accessToken();
     const tenantId = (session.tenant_id || this.cfg.defaultTenantId || "").trim();
@@ -21930,12 +21936,17 @@ function env(name, fallback = "") {
 }
 function loadConfig() {
   const scopes = env("YAAIF_OIDC_SCOPES", "openid profile email offline_access").split(/\s+/).filter(Boolean);
+  const apiBaseUrl = trimSlash(env("YAAIF_API_BASE_URL", "https://platform.yaaif.ai"));
   return {
     oidcAuthority: trimSlash(env("YAAIF_OIDC_AUTHORITY", "https://platform.yaaif.ai/auth/realms/yaaif")),
     oidcClientId: env("YAAIF_OIDC_CLIENT_ID", "yaaif-cursor"),
     oidcScopes: scopes.length ? scopes : ["openid", "profile", "email", "offline_access"],
-    apiBaseUrl: trimSlash(env("YAAIF_API_BASE_URL", "https://platform.yaaif.ai")),
-    agentBaseUrl: trimSlash(env("YAAIF_AGENT_BASE_URL", "https://platform.yaaif.ai/agent-service")),
+    apiBaseUrl,
+    agentBaseUrl: trimSlash(env("YAAIF_AGENT_BASE_URL", `${apiBaseUrl}/agent-service`)),
+    controlPlaneBaseUrl: trimSlash(
+      env("YAAIF_CONTROL_PLANE_BASE_URL", `${apiBaseUrl}/control-plane-service`)
+    ),
+    approvalBaseUrl: trimSlash(env("YAAIF_APPROVAL_BASE_URL", `${apiBaseUrl}/approval-service`)),
     defaultTenantId: env("YAAIF_DEFAULT_TENANT_ID"),
     cursorHome: env("YAAIF_CURSOR_HOME", join2(homedir(), ".yaaif", "cursor"))
   };
@@ -21956,6 +21967,395 @@ function fail(message) {
   };
 }
 
+// src/lib/mergeSkillIds.ts
+function mergeSkillIds(existing, add) {
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const id of [...existing ?? [], ...add ?? []]) {
+    const trimmed = String(id ?? "").trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
+
+// src/tools/registerDesktop.ts
+function registerDesktopTools(server, ctx) {
+  server.registerTool("yaaif_desktop_workers_list", {
+    description: "List desktop workers in the tenant (control-plane).",
+    inputSchema: { q: external_exports.string().optional(), limit: external_exports.number().optional() }
+  }, async ({ q, limit }) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (limit) params.set("limit", String(limit));
+    const path2 = `/api/desktop/workers${params.size ? `?${params}` : ""}`;
+    try {
+      return ok("Listed desktop workers.", {
+        result: await ctx.api.controlPlaneJSON("GET", path2)
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_desktop_skill_mappings_list", {
+    description: "List desktop worker\u2194skill mappings (control-plane).",
+    inputSchema: { skill_id: external_exports.string().optional() }
+  }, async ({ skill_id }) => {
+    const params = new URLSearchParams();
+    if (skill_id) params.set("skill_id", skill_id);
+    const path2 = `/api/desktop/skill-mappings${params.size ? `?${params}` : ""}`;
+    try {
+      return ok("Listed desktop skill mappings.", {
+        result: await ctx.api.controlPlaneJSON("GET", path2)
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_desktop_skill_mapping_set", {
+    description: "Replace worker ids mapped to a desktop skill (control-plane PUT).",
+    inputSchema: {
+      skill_id: external_exports.string(),
+      worker_ids: external_exports.array(external_exports.string())
+    }
+  }, async ({ skill_id, worker_ids }) => {
+    try {
+      const mapping = await ctx.api.controlPlaneJSON(
+        "PUT",
+        `/api/desktop/skill-mappings/${encodeURIComponent(skill_id)}`,
+        { worker_ids }
+      );
+      return ok(`Mapped skill ${skill_id} to ${worker_ids.length} worker(s).`, { mapping });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_desktop_skill_mapping_delete", {
+    description: "Delete desktop worker\u2194skill mapping for a skill id.",
+    inputSchema: { skill_id: external_exports.string() }
+  }, async ({ skill_id }) => {
+    try {
+      await ctx.api.controlPlaneJSON(
+        "DELETE",
+        `/api/desktop/skill-mappings/${encodeURIComponent(skill_id)}`
+      );
+      return ok(`Deleted desktop skill mapping for ${skill_id}.`, { skill_id, deleted: true });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+}
+
+// src/tools/registerApproval.ts
+function defaultStrategyDefinition(objectType2, approverEmail) {
+  return {
+    object_type: objectType2,
+    conditions: [],
+    stages: [
+      {
+        stage_order: 1,
+        name: "Approve",
+        mode: "sequential",
+        allow_delegate: false,
+        sla_hours: 24,
+        nodes: [
+          {
+            node_order: 1,
+            name: "Primary approver",
+            approver_source_type: "user",
+            approver_source_ref: approverEmail,
+            completion_rule: "any",
+            allow_delegate: false,
+            sla_hours: 24
+          }
+        ]
+      }
+    ]
+  };
+}
+function registerApprovalTools(server, ctx) {
+  server.registerTool("yaaif_approval_strategies_list", {
+    description: "List approval strategies (approval-service).",
+    inputSchema: {
+      limit: external_exports.number().optional(),
+      offset: external_exports.number().optional()
+    }
+  }, async ({ limit, offset }) => {
+    const params = new URLSearchParams();
+    if (limit) params.set("limit", String(limit));
+    if (offset) params.set("offset", String(offset));
+    const path2 = `/api/approval/strategies${params.size ? `?${params}` : ""}`;
+    try {
+      return ok("Listed approval strategies.", {
+        result: await ctx.api.approvalJSON("GET", path2)
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_approval_strategy_get", {
+    description: "Get one approval strategy by id.",
+    inputSchema: { strategy_id: external_exports.string() }
+  }, async ({ strategy_id }) => {
+    try {
+      return ok("Fetched approval strategy.", {
+        strategy: await ctx.api.approvalJSON(
+          "GET",
+          `/api/approval/strategies/${encodeURIComponent(strategy_id)}`
+        )
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_approval_strategy_create", {
+    description: "Create an approval strategy (draft). Optionally publish version 1. Use for ambient Linear+approval graphs.",
+    inputSchema: {
+      name: external_exports.string(),
+      object_type: external_exports.string().optional(),
+      description: external_exports.string().optional(),
+      priority: external_exports.number().optional(),
+      approver_email: external_exports.string().optional(),
+      definition: external_exports.record(external_exports.unknown()).optional(),
+      publish: external_exports.boolean().optional()
+    }
+  }, async (args) => {
+    const objectType2 = (args.object_type || "WORKFLOW_PAUSE").toUpperCase();
+    let definition = args.definition;
+    if (!definition) {
+      const email2 = (args.approver_email || "").trim();
+      if (!email2) {
+        return fail("approver_email is required when definition is omitted");
+      }
+      definition = defaultStrategyDefinition(objectType2, email2);
+    }
+    const body = {
+      name: args.name,
+      object_type: objectType2,
+      description: args.description ?? "",
+      priority: args.priority ?? 100,
+      definition
+    };
+    try {
+      const created = await ctx.api.approvalJSON(
+        "POST",
+        "/api/approval/strategies",
+        body
+      );
+      let published;
+      if (args.publish) {
+        const strategy = created.strategy;
+        const strategyId = strategy?.id;
+        if (strategyId) {
+          published = await ctx.api.approvalJSON(
+            "POST",
+            `/api/approval/strategies/${encodeURIComponent(strategyId)}/versions/1/publish`,
+            {}
+          );
+        }
+      }
+      return ok(`Created approval strategy ${args.name}.`, {
+        created,
+        published,
+        approval_strategy_id: created.strategy?.id
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_approval_strategy_publish", {
+    description: "Publish an approval strategy version (required before ambient graphs resolve it).",
+    inputSchema: {
+      strategy_id: external_exports.string(),
+      version: external_exports.number().optional()
+    }
+  }, async ({ strategy_id, version: version2 }) => {
+    const ver = version2 && version2 > 0 ? version2 : 1;
+    try {
+      return ok(`Published strategy ${strategy_id} v${ver}.`, {
+        result: await ctx.api.approvalJSON(
+          "POST",
+          `/api/approval/strategies/${encodeURIComponent(strategy_id)}/versions/${ver}/publish`,
+          {}
+        )
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+}
+
+// src/lib/planCatalog.ts
+function asArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === "object") {
+    const obj = value;
+    if (Array.isArray(obj.items)) return obj.items;
+    if (Array.isArray(obj.skills)) return obj.skills;
+    if (Array.isArray(obj.agents)) return obj.agents;
+    if (Array.isArray(obj.workflows)) return obj.workflows;
+    if (Array.isArray(obj.tools)) return obj.tools;
+  }
+  return [];
+}
+function nameOf(row) {
+  if (!row || typeof row !== "object") return "";
+  const o = row;
+  return String(o.name ?? o.id ?? "").trim();
+}
+function idOf(row) {
+  if (!row || typeof row !== "object") return "";
+  const o = row;
+  return String(o.id ?? "").trim();
+}
+function extractCatalogBuckets(raw) {
+  return {
+    agents: asArray(raw.agents).map((r) => ({ id: idOf(r), name: nameOf(r) })),
+    skills: asArray(raw.skills).map((r) => ({ id: idOf(r) || nameOf(r), name: nameOf(r) })),
+    workflows: asArray(raw.ambient_workflows).map((r) => ({ id: idOf(r), name: nameOf(r) })),
+    mcp_tools: asArray(raw.mcp_tools).map((r) => ({ id: idOf(r), name: nameOf(r) })),
+    ambient_agents: asArray(raw.ambient_agents).map((r) => ({ id: idOf(r), name: nameOf(r) }))
+  };
+}
+function hasName(rows, want) {
+  const target = want.trim().toLowerCase();
+  if (!target) return true;
+  return rows.some((r) => {
+    const n = (r.name || "").toLowerCase();
+    const id = (r.id || "").toLowerCase();
+    return n === target || id === target || id.endsWith(`/${target}`) || n.includes(target);
+  });
+}
+function verifyPlanAgainstCatalog(expectations, buckets) {
+  const missing = {};
+  const found = {};
+  const check2 = (key, rows) => {
+    const wants = expectations[key] ?? [];
+    for (const want of wants) {
+      if (hasName(rows, want)) {
+        (found[key] ??= []).push(want);
+      } else {
+        (missing[key] ??= []).push(want);
+      }
+    }
+  };
+  check2("agent_names", buckets.agents);
+  check2("skill_ids", buckets.skills);
+  check2("workflow_names", buckets.workflows);
+  check2("mcp_tool_names", buckets.mcp_tools);
+  check2("ambient_agent_names", buckets.ambient_agents);
+  const ok2 = Object.keys(missing).length === 0;
+  return { ok: ok2, found, missing, buckets };
+}
+
+// src/tools/registerPlan.ts
+async function loadCatalogSnapshot(ctx, q, limit) {
+  const lim = limit && limit > 0 ? limit : 100;
+  const params = new URLSearchParams({ limit: String(lim) });
+  if (q) params.set("q", q);
+  const qs = `?${params}`;
+  const out = {};
+  const errors = {};
+  const load = async (key, fn) => {
+    try {
+      out[key] = await fn();
+    } catch (e) {
+      errors[key] = String(e);
+    }
+  };
+  await Promise.all([
+    load("agents", () => ctx.api.agentJSON("GET", `/api/agents${qs}`)),
+    load("skills", () => ctx.api.agentJSON("GET", `/api/skills${qs}`)),
+    load("mcp_tools", () => ctx.api.agentJSON("GET", `/api/mcp-tools${qs}`)),
+    load("ambient_agents", () => ctx.api.agentJSON("GET", `/api/ambient/agents${qs}`)),
+    load("ambient_workflows", () => ctx.api.agentJSON("GET", `/api/ambient/workflows${qs}`))
+  ]);
+  if (Object.keys(errors).length) out.errors = errors;
+  return out;
+}
+function registerPlanTools(server, ctx) {
+  server.registerTool("yaaif_plan_verify", {
+    description: "Diff expected plan components (agent/skill/workflow/MCP names) against the live tenant catalog.",
+    inputSchema: {
+      agent_names: external_exports.array(external_exports.string()).optional(),
+      skill_ids: external_exports.array(external_exports.string()).optional(),
+      workflow_names: external_exports.array(external_exports.string()).optional(),
+      mcp_tool_names: external_exports.array(external_exports.string()).optional(),
+      ambient_agent_names: external_exports.array(external_exports.string()).optional(),
+      q: external_exports.string().optional(),
+      limit: external_exports.number().optional()
+    }
+  }, async (args) => {
+    try {
+      const raw = await loadCatalogSnapshot(ctx, args.q, args.limit);
+      const buckets = extractCatalogBuckets(raw);
+      const result = verifyPlanAgainstCatalog(
+        {
+          agent_names: args.agent_names,
+          skill_ids: args.skill_ids,
+          workflow_names: args.workflow_names,
+          mcp_tool_names: args.mcp_tool_names,
+          ambient_agent_names: args.ambient_agent_names
+        },
+        buckets
+      );
+      return ok(
+        result.ok ? "Plan verification passed." : "Plan verification found missing components.",
+        { ...result, catalog_errors: raw.errors }
+      );
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_plan_dry_run", {
+    description: "Dry-run an execution plan: echo intended tool calls without mutating the tenant. Optionally check catalog refs.",
+    inputSchema: {
+      actions: external_exports.array(external_exports.object({
+        tool: external_exports.string(),
+        arguments: external_exports.record(external_exports.unknown()).optional(),
+        note: external_exports.string().optional()
+      })),
+      verify_catalog: external_exports.boolean().optional(),
+      expected: external_exports.object({
+        agent_names: external_exports.array(external_exports.string()).optional(),
+        skill_ids: external_exports.array(external_exports.string()).optional(),
+        workflow_names: external_exports.array(external_exports.string()).optional(),
+        mcp_tool_names: external_exports.array(external_exports.string()).optional(),
+        ambient_agent_names: external_exports.array(external_exports.string()).optional()
+      }).optional()
+    }
+  }, async ({ actions, verify_catalog, expected }) => {
+    const mutating = actions.filter((a) => !/^yaaif_(catalog_|.*_list|.*_get|whoami|configure)/.test(a.tool));
+    const out = {
+      dry_run: true,
+      action_count: actions.length,
+      mutating_action_count: mutating.length,
+      actions,
+      note: "No APIs were called except optional catalog verify."
+    };
+    if (verify_catalog || expected) {
+      try {
+        const raw = await loadCatalogSnapshot(ctx);
+        const buckets = extractCatalogBuckets(raw);
+        out.catalog_snapshot_summary = {
+          agents: buckets.agents.length,
+          skills: buckets.skills.length,
+          workflows: buckets.workflows.length,
+          mcp_tools: buckets.mcp_tools.length,
+          ambient_agents: buckets.ambient_agents.length
+        };
+        if (expected) {
+          out.precheck = verifyPlanAgainstCatalog(expected, buckets);
+        }
+      } catch (e) {
+        out.catalog_verify_error = String(e);
+      }
+    }
+    return ok(`Dry-run prepared ${actions.length} action(s); nothing was mutated.`, out);
+  });
+}
+
 // src/tools/register.ts
 import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21966,6 +22366,9 @@ function registerAllTools(server, ctx) {
   registerSkills(server, ctx);
   registerAmbient(server, ctx);
   registerMcp(server, ctx);
+  registerDesktopTools(server, ctx);
+  registerApprovalTools(server, ctx);
+  registerPlanTools(server, ctx);
 }
 function registerAuth(server, ctx) {
   server.registerTool("yaaif_configure_check", {
@@ -21977,22 +22380,25 @@ function registerAuth(server, ctx) {
       oidc_authority: ctx.cfg.oidcAuthority,
       api_base: ctx.cfg.apiBaseUrl,
       agent_base: ctx.cfg.agentBaseUrl,
+      control_plane_base: ctx.cfg.controlPlaneBaseUrl,
+      approval_base: ctx.cfg.approvalBaseUrl,
       client_id: ctx.cfg.oidcClientId,
       authenticated: Boolean(sess?.tokens.access_token),
       tenant_id: sess?.tenant_id || ctx.cfg.defaultTenantId || ""
     };
-    try {
-      const healthApi = await fetch(`${ctx.cfg.apiBaseUrl}/health`);
-      out.api_health = healthApi.status;
-    } catch (e) {
-      out.api_health_error = String(e);
-    }
-    try {
-      const healthAgent = await fetch(`${ctx.cfg.agentBaseUrl}/health`);
-      out.agent_health = healthAgent.status;
-    } catch (e) {
-      out.agent_health_error = String(e);
-    }
+    const probe = async (key, url) => {
+      try {
+        out[key] = (await fetch(url)).status;
+      } catch (e) {
+        out[`${key}_error`] = String(e);
+      }
+    };
+    await Promise.all([
+      probe("api_health", `${ctx.cfg.apiBaseUrl}/health`),
+      probe("agent_health", `${ctx.cfg.agentBaseUrl}/health`),
+      probe("control_plane_health", `${ctx.cfg.controlPlaneBaseUrl}/health`),
+      probe("approval_health", `${ctx.cfg.approvalBaseUrl}/health`)
+    ]);
     if (sess?.tokens.access_token) {
       try {
         out.rbac_me = await ctx.api.apiJSON("GET", "/api/rbac/me");
@@ -22221,7 +22627,7 @@ function registerSkills(server, ctx) {
     }
   });
   server.registerTool("yaaif_skill_map_agents", {
-    description: "Replace agent\u2192skill mappings (bulk).",
+    description: "Replace agent\u2192skill mappings (bulk). Prefer yaaif_skill_map_agents_merge to avoid wiping existing skills.",
     inputSchema: {
       assignments: external_exports.array(external_exports.object({
         agent_id: external_exports.string(),
@@ -22232,6 +22638,38 @@ function registerSkills(server, ctx) {
     try {
       const result = await ctx.api.agentJSON("POST", "/api/agents/skills/bulk", { assignments });
       return ok("Updated agent skill mappings.", { result });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_skill_map_agents_merge", {
+    description: "Merge skill_ids into agents (fetch current mappings, union, then bulk replace). Safe default for plan execution.",
+    inputSchema: {
+      assignments: external_exports.array(external_exports.object({
+        agent_id: external_exports.string(),
+        skill_ids: external_exports.array(external_exports.string())
+      }))
+    }
+  }, async ({ assignments }) => {
+    try {
+      const merged = [];
+      for (const a of assignments) {
+        const agent = await ctx.api.agentJSON(
+          "GET",
+          `/api/agents/${encodeURIComponent(a.agent_id)}`
+        );
+        const skill_ids = mergeSkillIds(agent?.skill_ids, a.skill_ids);
+        merged.push({
+          agent_id: a.agent_id,
+          skill_ids,
+          previous_skill_ids: agent?.skill_ids ?? [],
+          added_skill_ids: a.skill_ids
+        });
+      }
+      const result = await ctx.api.agentJSON("POST", "/api/agents/skills/bulk", {
+        assignments: merged.map(({ agent_id, skill_ids }) => ({ agent_id, skill_ids }))
+      });
+      return ok("Merged agent skill mappings.", { merged, result });
     } catch (e) {
       return fail(String(e));
     }
@@ -22351,6 +22789,36 @@ function registerAmbient(server, ctx) {
     if (args.agent_type) body.agent_type = args.agent_type;
     try {
       return ok(`Created agent ${args.name}.`, { agent: await ctx.api.agentJSON("POST", "/api/agents", body) });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_agent_update", {
+    description: "Update an existing agent (PUT). agent_type is immutable \u2014 omit it. skill_ids replaces mappings if provided.",
+    inputSchema: {
+      agent_id: external_exports.string(),
+      name: external_exports.string().optional(),
+      description: external_exports.string().optional(),
+      goal_prompt: external_exports.string().optional(),
+      skill_ids: external_exports.array(external_exports.string()).optional(),
+      enabled: external_exports.boolean().optional()
+    }
+  }, async (args) => {
+    const body = {};
+    if (args.name !== void 0) body.name = args.name;
+    if (args.description !== void 0) body.description = args.description;
+    if (args.goal_prompt !== void 0) body.goal_prompt = args.goal_prompt;
+    if (args.skill_ids !== void 0) body.skill_ids = args.skill_ids;
+    if (args.enabled !== void 0) body.enabled = args.enabled;
+    if (Object.keys(body).length === 0) return fail("No fields to update");
+    try {
+      return ok(`Updated agent ${args.agent_id}.`, {
+        agent: await ctx.api.agentJSON(
+          "PUT",
+          `/api/agents/${encodeURIComponent(args.agent_id)}`,
+          body
+        )
+      });
     } catch (e) {
       return fail(String(e));
     }

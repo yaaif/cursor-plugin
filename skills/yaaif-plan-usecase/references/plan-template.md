@@ -63,21 +63,35 @@ after marking them N/A — prefer keeping the headings for a consistent shape.
 |--------|----------|------|--------------------|---------------|
 | create / reuse | | chat / orchestration / desktop / ambient-step / base | | |
 
+### 4.5 Approval strategies
+
+| Action | Name | object_type | Approver email | Publish? |
+|--------|------|-------------|----------------|----------|
+| create / reuse / none | | WORKFLOW_PAUSE | | yes |
+
+### 4.6 Desktop worker mappings
+
+| Skill id | Worker ids | Notes |
+|----------|------------|-------|
+| | | from yaaif_desktop_workers_list |
+
 ## 5. Skill ↔ agent mappings
 
-| Agent id / name | Final skill_ids (merged) |
-|-----------------|--------------------------|
+| Agent id / name | skill_ids to merge (use yaaif_skill_map_agents_merge) |
+|-----------------|------------------------------------------------------|
 | | |
 
 ## 6. Install order
 
 1. [ ] MCP deploy/register (if needed)
-2. [ ] Create / bind agents
-3. [ ] Ambient agent + workflow (if needed)
-4. [ ] Create / load skills
-5. [ ] Enable + map skills (merge existing)
-6. [ ] Refresh / runtime reload
-7. [ ] Verify (catalog + optional test-trigger)
+2. [ ] Create / bind agents (`yaaif_agent_create` / `yaaif_agent_update`)
+3. [ ] Approval strategy create+publish (if HITL)
+4. [ ] Ambient agent + workflow (if needed)
+5. [ ] Create / load skills
+6. [ ] Enable + `yaaif_skill_map_agents_merge`
+7. [ ] Desktop skill mappings (if needed)
+8. [ ] Refresh / runtime reload
+9. [ ] Optional `yaaif_plan_dry_run` before mutate; then `yaaif_plan_verify` + test-trigger
 
 ## 7. Test plan
 

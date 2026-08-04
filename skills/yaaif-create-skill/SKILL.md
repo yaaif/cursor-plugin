@@ -36,7 +36,7 @@ Optionally write a local draft in the user's workspace, then load via API.
 
 1. `yaaif_skill_create` with `id`, `description`, `instruction`, `tools` / `allowed_tools`, `enabled: true`
 2. Companions via `yaaif_skill_write_file`
-3. `yaaif_skill_map_agents` (bulk replace — include full desired skill_ids list)
+3. Prefer `yaaif_skill_map_agents_merge` (safe union). Use `yaaif_skill_map_agents` only when intentionally replacing the full list.
 4. `yaaif_skill_validate` (optional)
 5. `yaaif_skill_refresh` then `yaaif_skill_runtime_reload`
 

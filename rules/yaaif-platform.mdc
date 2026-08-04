@@ -11,8 +11,8 @@ When the user asks to work with YAAIF (skills, MCP tools/deployments, ambient wo
 2. Prefer the `yaaif-*` MCP bridge tools for platform mutations. Do not invent REST paths or tool catalog names.
 3. This plugin works without the yaaif-platform monorepo — write packs in the user workspace and load via bridge tools.
 4. For multi-capability use cases (chat + ambient + desktop, or unclear split), start with `yaaif-plan-usecase` / `/yaaif-plan`: write a plan, wait for approval, then execute. Do not jump straight to a single create skill.
-5. Install order for packs: MCP deploy/register → workflow agent + ambient agent → ambient workflow → chat skill enable/map → test-trigger.
+5. Install order for packs: MCP deploy/register → agents → approval strategy (if HITL) → ambient agent/workflow → chat/desktop skills → `yaaif_skill_map_agents_merge` → desktop worker mappings → test-trigger / `yaaif_plan_verify`.
 6. Skill frontmatter `tools` / `allowed-tools` must use real registered MCP tool names only.
 7. Chat→ambient skills must include `list_ambient_workflows` and `trigger_ambient_workflow`.
-8. When mapping skills with `yaaif_skill_map_agents`, merge with existing agent `skill_ids` first (bulk replace).
+8. Prefer `yaaif_skill_map_agents_merge` over replace. Use `yaaif_plan_dry_run` before large executes.
 9. Never use S2S secrets, desktop connection keys, or AI-gateway keys for this plugin.

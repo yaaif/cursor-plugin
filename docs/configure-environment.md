@@ -7,6 +7,8 @@ export YAAIF_OIDC_AUTHORITY=https://platform.yaaif.ai/auth/realms/yaaif
 export YAAIF_OIDC_CLIENT_ID=yaaif-cursor
 export YAAIF_API_BASE_URL=https://platform.yaaif.ai
 export YAAIF_AGENT_BASE_URL=https://platform.yaaif.ai/agent-service
+export YAAIF_CONTROL_PLANE_BASE_URL=https://platform.yaaif.ai/control-plane-service
+export YAAIF_APPROVAL_BASE_URL=https://platform.yaaif.ai/approval-service
 export YAAIF_DEFAULT_TENANT_ID=<tenant-uuid>   # optional
 ```
 
@@ -24,6 +26,8 @@ export YAAIF_OIDC_AUTHORITY=https://platform.yaaif.com/auth/realms/yaaif
 export YAAIF_OIDC_CLIENT_ID=yaaif-cursor
 export YAAIF_API_BASE_URL=https://platform.yaaif.local
 export YAAIF_AGENT_BASE_URL=https://platform.yaaif.local/agent-service
+export YAAIF_CONTROL_PLANE_BASE_URL=https://platform.yaaif.local/control-plane-service
+export YAAIF_APPROVAL_BASE_URL=https://platform.yaaif.local/approval-service
 export YAAIF_DEFAULT_TENANT_ID=<tenant-uuid>   # optional
 ```
 
@@ -34,6 +38,8 @@ export YAAIF_OIDC_AUTHORITY=https://platform.yaaif.local/auth/realms/yaaif
 export YAAIF_OIDC_CLIENT_ID=yaaif-cursor
 export YAAIF_API_BASE_URL=https://platform.yaaif.local
 export YAAIF_AGENT_BASE_URL=https://platform.yaaif.local/agent-service
+export YAAIF_CONTROL_PLANE_BASE_URL=https://platform.yaaif.local/control-plane-service
+export YAAIF_APPROVAL_BASE_URL=https://platform.yaaif.local/approval-service
 ```
 
 Ensure Keycloak has client `yaaif-cursor` (realm import or `ensure-yaaif-cursor-client.sh`).

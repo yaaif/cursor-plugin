@@ -15,8 +15,9 @@ existing agent, skill, MCP tool, or workflow already matches.
 | Batch detect then later clearance | Ambient pattern **Recon / resolve** (often two graphs) |
 | Multi-route decisions in automation | Ambient pattern **Branching** |
 | Single automated path | Ambient pattern **Linear** (default) |
-| SAP GUI / local OS UI on a desktop worker | **Desktop skill** (`classification: desktop`) + desktop agent (`agent_type: desktop`) |
+| SAP GUI / local OS UI on a desktop worker | **Desktop skill** (`classification: desktop`) + desktop agent (`agent_type: desktop`) + **worker mapping** |
 | Domain APIs not in MCP catalog | **MCP tools** first (`yaaif-create-mcp`), then skills/workflows that call them |
+| Ambient graph has `approval` / HITL gate | **Approval strategy** (`yaaif_approval_strategy_create` + publish) before workflow install |
 | Shared identity / formatting every chat turn | **Base / always-active** chat skill (rare; only if clearly needed) |
 | Graph step needs dedicated LLM skill | **Ambient step skill** (`classification: ambient`) |
 
@@ -25,9 +26,10 @@ existing agent, skill, MCP tool, or workflow already matches.
 1. **Interactive-only + existing MCP tools** → chat skill + chat agent only. No ambient.
 2. **Chat starts long-running work** → chat orchestration skill + one ambient graph + workflow agent + chat agent.
 3. **Batch / schedule / HITL without chat** → ambient only (workflow + ambient agents). Add a chat skill only if operators need chat trigger or status.
-4. **SAP GUI / local UI** → desktop skill + desktop agent. Document Admin UI follow-up for **worker↔skill** mappings (not available via Cursor MCP).
-5. **Missing APIs** → plan MCP tools before ambient/chat that depend on them.
-6. **Overlap with catalog** → mark component as **reuse** with existing id/name; do not create duplicates.
+4. **SAP GUI / local UI** → desktop skill + desktop agent + `yaaif_desktop_skill_mapping_set` after `yaaif_desktop_workers_list`.
+5. **HITL ambient** → create/publish approval strategy; put `approval_strategy_id` on approval nodes.
+6. **Missing APIs** → plan MCP tools before ambient/chat that depend on them.
+7. **Overlap with catalog** → mark component as **reuse** with existing id/name; do not create duplicates.
 
 ## Agent types
 
@@ -58,5 +60,6 @@ Ambient install order (when ambient is in scope):
 - Chat skill that embeds a full multi-step batch job instead of triggering ambient
 - Inventing MCP tool names not in the catalog
 - Creating a new agent when an existing one with the right type already fits
-- Mapping skills without merging existing `skill_ids` (bulk replace)
-- Claiming desktop worker mappings were applied via this plugin
+- Using `yaaif_skill_map_agents` (replace) when `yaaif_skill_map_agents_merge` is safer
+- Approval nodes without a published `approval_strategy_id`
+- Desktop skills without worker mappings when workers are known

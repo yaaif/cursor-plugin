@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0
+
+- Safe skill mapping: `yaaif_skill_map_agents_merge`
+- Agent update: `yaaif_agent_update`
+- Desktop worker tools: list workers + skill-mappings get/set/delete (control-plane)
+- Approval strategy tools: list/get/create/publish (approval-service)
+- Plan helpers: `yaaif_plan_verify`, `yaaif_plan_dry_run`
+- Plan skill: interview mode, dry-run, examples, approval + desktop steps
+- Config: `YAAIF_CONTROL_PLANE_BASE_URL`, `YAAIF_APPROVAL_BASE_URL`
+- Package `@yaaif/cursor-mcp@0.4.0`
+
 ## 0.3.0
 
 - `yaaif-plan-usecase` skill + `/yaaif-plan`: propose chat/ambient/desktop architecture, then execute after approval

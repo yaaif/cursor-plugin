@@ -1,7 +1,7 @@
 {
   "name": "yaaif",
   "description": "Authenticate to YAAIF, plan use cases, and create skills, MCP deployments, and ambient workflows from Cursor.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": {
     "name": "YAAIF / BeezLabs",
     "email": "support@yaaif.com"
@@ -39,6 +39,18 @@
         "title": "Agent service base URL",
         "description": "agent-service origin",
         "default": "https://platform.yaaif.ai/agent-service"
+      },
+      "YAAIF_CONTROL_PLANE_BASE_URL": {
+        "type": "string",
+        "title": "Control plane base URL",
+        "description": "control-plane-service origin (desktop workers / skill mappings)",
+        "default": "https://platform.yaaif.ai/control-plane-service"
+      },
+      "YAAIF_APPROVAL_BASE_URL": {
+        "type": "string",
+        "title": "Approval service base URL",
+        "description": "approval-service origin (strategies for HITL ambient)",
+        "default": "https://platform.yaaif.ai/approval-service"
       },
       "YAAIF_DEFAULT_TENANT_ID": {
         "type": "string",
