@@ -1,0 +1,15 @@
+---
+description: YAAIF Cursor plugin conventions for auth, skills, MCP deploy, and ambient workflows
+alwaysApply: true
+---
+
+# YAAIF Platform (Cursor plugin)
+
+When the user asks to work with YAAIF (skills, MCP tools/deployments, ambient workflows):
+
+1. Ensure session first: call `yaaif_whoami`. If not authenticated, run `yaaif_login`, then `yaaif_list_tenants` / `yaaif_set_tenant`.
+2. Prefer the `yaaif-*` MCP bridge tools for platform mutations. Do not invent REST paths or tool catalog names.
+3. Install order for packs: MCP deploy/register → workflow agent + ambient agent → ambient workflow → chat skill enable/map → test-trigger.
+4. Skill frontmatter `tools` / `allowed-tools` must use real registered MCP tool names only.
+5. Chat→ambient skills must include `list_ambient_workflows` and `trigger_ambient_workflow`.
+6. Never use S2S secrets, desktop connection keys, or AI-gateway keys for this plugin.

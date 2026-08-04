@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "yaaif": {
+      "command": "./mcp-server/run.sh",
+      "env": {
+        "YAAIF_OIDC_AUTHORITY": "${YAAIF_OIDC_AUTHORITY}",
+        "YAAIF_OIDC_CLIENT_ID": "yaaif-cursor",
+        "YAAIF_API_BASE_URL": "${YAAIF_API_BASE_URL}",
+        "YAAIF_AGENT_BASE_URL": "${YAAIF_AGENT_BASE_URL}",
+        "YAAIF_DEFAULT_TENANT_ID": "${YAAIF_DEFAULT_TENANT_ID}"
+      }
+    }
+  }
+}

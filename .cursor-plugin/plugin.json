@@ -1,0 +1,49 @@
+{
+  "name": "yaaif",
+  "description": "Authenticate to YAAIF and create skills, MCP deployments, and ambient workflows from Cursor.",
+  "version": "0.1.0",
+  "author": {
+    "name": "YAAIF / BeezLabs"
+  },
+  "keywords": [
+    "yaaif",
+    "skills",
+    "mcp",
+    "ambient",
+    "workflows",
+    "keycloak"
+  ],
+  "variables": {
+    "type": "object",
+    "properties": {
+      "YAAIF_OIDC_AUTHORITY": {
+        "type": "string",
+        "title": "OIDC authority",
+        "description": "Keycloak realm URL, e.g. http://localhost:8080/auth/realms/yaaif",
+        "default": "http://localhost:8080/auth/realms/yaaif"
+      },
+      "YAAIF_API_BASE_URL": {
+        "type": "string",
+        "title": "API server base URL",
+        "description": "api-server origin (no trailing path)",
+        "default": "http://localhost:8084"
+      },
+      "YAAIF_AGENT_BASE_URL": {
+        "type": "string",
+        "title": "Agent service base URL",
+        "description": "agent-service origin",
+        "default": "http://localhost:8086"
+      },
+      "YAAIF_DEFAULT_TENANT_ID": {
+        "type": "string",
+        "title": "Default tenant ID",
+        "description": "Optional tenant UUID used when session has none set"
+      }
+    },
+    "required": [
+      "YAAIF_OIDC_AUTHORITY",
+      "YAAIF_API_BASE_URL",
+      "YAAIF_AGENT_BASE_URL"
+    ]
+  }
+}
