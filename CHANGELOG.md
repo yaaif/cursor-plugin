@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0
+
+- Read-only ops support: `yaaif_ops_analyze` / `correlate` / session / ambient / desktop tools
+- Skill + command `/yaaif-ops` (`yaaif-ops-support`)
+- Doctor `ops_api` check for agent-service `GET /api/ops/correlate`
+- Fix ambient runs list filter: `ambient_workflow_id` (+ status/q)
+- Docs: `docs/ops-support.md`
+- Requires agent-service `/api/ops/*` RO facade
+
 ## 0.8.0
 
 - Dev-session auto-picks default skills agent; skills runtime attached on local-tool calls

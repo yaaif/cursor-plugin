@@ -4,9 +4,10 @@ Partners do **not** need the yaaif-platform monorepo.
 
 ## Recommended order
 
-1. Auth (`/yaaif-login`) then `/yaaif-doctor` (confirm `local_tools`)
-2. Multi-capability use cases: `/yaaif-plan` (propose → approve → execute; verify `local_tool_names`)
-3. Or step-by-step:
+1. Auth (`/yaaif-login`) then `/yaaif-doctor` (confirm `local_tools` / `ops_api`)
+2. Incident triage: `/yaaif-ops` (read-only session/ambient/desktop analysis)
+3. Multi-capability use cases: `/yaaif-plan` (propose → approve → execute; verify `local_tool_names`)
+4. Or step-by-step:
    - MCP tools (`/yaaif-new-mcp`) — deploy or link
    - Ambient workflow (`/yaaif-new-workflow`) when automation is required
    - Discover platform tools (`/yaaif-platform-tools`) before inventing skill `tools:`

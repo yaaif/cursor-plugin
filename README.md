@@ -80,7 +80,7 @@ MCP bridge is TypeScript (`packages/mcp`), launched via:
 After npm publish:
 
 ```bash
-npx -y @yaaif/cursor-mcp@0.8.0
+npx -y @yaaif/cursor-mcp@0.9.0
 ```
 
 Requires **Node.js ≥ 20**. No Go toolchain.
@@ -94,6 +94,7 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 | `yaaif-plan-usecase` / `/yaaif-plan` | Use-case plan → approve → create agents/skills/workflows |
 | `yaaif-create-skill` / `/yaaif-new-skill` | Author + load skill (prefers platform local lifecycle tools) |
 | `yaaif-platform-tools` / `/yaaif-platform-tools` | Discover/call agent-service built-in local tools |
+| `yaaif-ops-support` / `/yaaif-ops` | Read-only incident triage (session/ambient/desktop) |
 | `yaaif-create-mcp` / `/yaaif-new-mcp` | Scaffold + deploy MCP |
 | `yaaif-create-ambient` / `/yaaif-new-workflow` | Ambient workflows |
 
@@ -107,7 +108,8 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 | `yaaif_skill_tools_check` | Verify skill tools against local + MCP catalogs |
 | `yaaif_skill_validate_module` / `yaaif_skill_develop` / `yaaif_skill_guided_draft` / `yaaif_skill_update_module_files` / `yaaif_skill_edit_section` | Skill lifecycle locals |
 | `yaaif_list_ambient_workflows` / `yaaif_trigger_ambient_workflow` | Ambient locals |
-| `yaaif_doctor` | Profile + OIDC + health + session + catalog + local tools smoke |
+| `yaaif_ops_analyze` / `yaaif_ops_correlate` / `yaaif_ops_*_get` | Read-only ops incident correlation + failures |
+| `yaaif_doctor` | Profile + OIDC + health + session + catalog + local tools + ops_api |
 | `yaaif_plan_verify` / `yaaif_plan_dry_run` / `yaaif_plan_execution_*` | Plan verify / dry-run / resume |
 | `yaaif_platform_export` | Shell exports + Cursor variables JSON |
 | `yaaif_agent_list` / `yaaif_agent_get` / `yaaif_agent_create` / `yaaif_agent_update` | Agents |
@@ -124,6 +126,7 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 - [Configure environment](docs/configure-environment.md)
 - [Partner workflows](docs/partner-workflows.md)
 - [Platform local tools](docs/platform-local-tools.md)
+- [Ops support (read-only)](docs/ops-support.md)
 - [Threat model](docs/threat-model.md)
 - [SECURITY.md](SECURITY.md)
 

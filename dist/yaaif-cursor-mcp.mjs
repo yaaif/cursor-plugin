@@ -23886,6 +23886,16 @@ function registerDoctorTools(server, ctx) {
         add("local_tools_smoke", false, String(e));
         void ctx.telemetry.increment("doctor_local_tools_smoke_fail");
       }
+      try {
+        await ctx.api.agentJSON("GET", "/api/ops/correlate");
+        add("ops_api", true, { note: "unexpected 200 without seed" });
+        void ctx.telemetry.increment("doctor_ops_api_ok");
+      } catch (e) {
+        const msg = String(e);
+        const routeOk = /\b400\b/.test(msg) || /at least one of session_id/i.test(msg);
+        add("ops_api", routeOk, { error: msg.slice(0, 240) });
+        void ctx.telemetry.increment(routeOk ? "doctor_ops_api_ok" : "doctor_ops_api_fail");
+      }
     }
     const failed = checks.filter((c) => !c.ok);
     const summary = failed.length ? `Doctor found ${failed.length} issue(s): ${failed.map((f) => f.name).join(", ")}` : "Doctor checks passed.";
@@ -24222,6 +24232,131 @@ function registerLocalTools(server, ctx) {
   alias("yaaif_file_load_context", "file_load_context", "Load extracted file text via file_load_context.");
 }
 
+// src/tools/registerOpsSupport.ts
+function opsQuery(params) {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v && v.trim()) qs.set(k, v.trim());
+  }
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}
+function registerOpsSupportTools(server, ctx) {
+  server.registerTool("yaaif_ops_correlate", {
+    description: "READ-ONLY: correlate session_id / ambient_run_id / desktop_run_id / request_id into one incident graph with failure summaries.",
+    inputSchema: {
+      session_id: external_exports.string().optional(),
+      ambient_run_id: external_exports.string().optional(),
+      desktop_run_id: external_exports.string().optional(),
+      request_id: external_exports.string().optional(),
+      harness_run_id: external_exports.string().optional(),
+      include_raw: external_exports.boolean().optional(),
+      analyze: external_exports.boolean().optional()
+    }
+  }, async (args) => {
+    try {
+      const path2 = `/api/ops/correlate${opsQuery({
+        session_id: args.session_id,
+        ambient_run_id: args.ambient_run_id,
+        desktop_run_id: args.desktop_run_id,
+        request_id: args.request_id,
+        harness_run_id: args.harness_run_id,
+        include_raw: args.include_raw ? "true" : void 0,
+        analyze: args.analyze ? "true" : void 0
+      })}`;
+      const result = await ctx.api.agentJSON("GET", path2);
+      return ok("Correlated ops incident.", { result });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_ops_analyze", {
+    description: "READ-ONLY: one-shot incident analysis \u2014 correlate IDs, rank failures, and return next_steps for operators.",
+    inputSchema: {
+      session_id: external_exports.string().optional(),
+      ambient_run_id: external_exports.string().optional(),
+      desktop_run_id: external_exports.string().optional(),
+      request_id: external_exports.string().optional(),
+      harness_run_id: external_exports.string().optional(),
+      include_raw: external_exports.boolean().optional()
+    }
+  }, async (args) => {
+    try {
+      const path2 = `/api/ops/analyze${opsQuery({
+        session_id: args.session_id,
+        ambient_run_id: args.ambient_run_id,
+        desktop_run_id: args.desktop_run_id,
+        request_id: args.request_id,
+        harness_run_id: args.harness_run_id,
+        include_raw: args.include_raw ? "true" : void 0
+      })}`;
+      const result = await ctx.api.agentJSON("GET", path2);
+      void ctx.telemetry.increment("ops_analyze_ok");
+      return ok("Analyzed ops incident.", { result });
+    } catch (e) {
+      void ctx.telemetry.increment("ops_analyze_fail");
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_ops_session_get", {
+    description: "READ-ONLY: LLM/flow session metrics detail + derived failure findings for a session_id.",
+    inputSchema: { session_id: external_exports.string() }
+  }, async ({ session_id }) => {
+    try {
+      const result = await ctx.api.agentJSON(
+        "GET",
+        `/api/ops/sessions/${encodeURIComponent(session_id)}`
+      );
+      return ok("Fetched ops session analysis.", { result });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_ops_ambient_run_get", {
+    description: "READ-ONLY: ambient workflow run detail + diagnostic failures for a run_id.",
+    inputSchema: { run_id: external_exports.string() }
+  }, async ({ run_id }) => {
+    try {
+      const result = await ctx.api.agentJSON(
+        "GET",
+        `/api/ops/ambient-runs/${encodeURIComponent(run_id)}`
+      );
+      return ok("Fetched ops ambient run analysis.", { result });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_ops_desktop_run_get", {
+    description: "READ-ONLY: desktop worker run detail + failure findings for a run_id.",
+    inputSchema: { run_id: external_exports.string() }
+  }, async ({ run_id }) => {
+    try {
+      const result = await ctx.api.agentJSON(
+        "GET",
+        `/api/ops/desktop-runs/${encodeURIComponent(run_id)}`
+      );
+      return ok("Fetched ops desktop run analysis.", { result });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_ops_desktop_runs_list", {
+    description: "READ-ONLY: list desktop runs for a session_id (optional status filter).",
+    inputSchema: {
+      session_id: external_exports.string(),
+      status: external_exports.string().optional()
+    }
+  }, async ({ session_id, status }) => {
+    try {
+      const path2 = `/api/ops/desktop-runs${opsQuery({ session_id, status })}`;
+      const result = await ctx.api.agentJSON("GET", path2);
+      return ok("Listed ops desktop runs.", { result });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+}
+
 // src/tools/register.ts
 import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24236,6 +24371,7 @@ function registerAllTools(server, ctx) {
   registerApprovalTools(server, ctx);
   registerPlanTools(server, ctx);
   registerOpsTools(server, ctx);
+  registerOpsSupportTools(server, ctx);
   registerLocalTools(server, ctx);
   registerDoctorTools(server, ctx);
 }
@@ -24734,13 +24870,20 @@ function registerAmbient(server, ctx) {
     description: "List ambient workflow runs.",
     inputSchema: {
       ambient_agent_id: external_exports.string().optional(),
+      ambient_workflow_id: external_exports.string().optional(),
+      /** @deprecated use ambient_workflow_id */
       workflow_id: external_exports.string().optional(),
+      status: external_exports.string().optional(),
+      q: external_exports.string().optional(),
       limit: external_exports.number().optional()
     }
   }, async (args) => {
     const params = new URLSearchParams();
     if (args.ambient_agent_id) params.set("ambient_agent_id", args.ambient_agent_id);
-    if (args.workflow_id) params.set("workflow_id", args.workflow_id);
+    const workflowID = args.ambient_workflow_id || args.workflow_id;
+    if (workflowID) params.set("ambient_workflow_id", workflowID);
+    if (args.status) params.set("status", args.status);
+    if (args.q) params.set("q", args.q);
     if (args.limit) params.set("limit", String(args.limit));
     const path2 = `/api/ambient/runs${params.size ? `?${params}` : ""}`;
     try {
@@ -25076,7 +25219,7 @@ async function main() {
   const telemetry = new TelemetryStore(cfg.cursorHome);
   const server = new McpServer({
     name: "yaaif-cursor",
-    version: "0.8.0"
+    version: "0.9.0"
   });
   registerAllTools(server, { cfg, auth, api, profiles, plans, telemetry });
   const transport = new StdioServerTransport();
