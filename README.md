@@ -40,13 +40,17 @@ Your YAAIF operator must enable the public Keycloak client `yaaif-cursor` (see p
 
 ### Local Traefik (`platform.yaaif.local`)
 
+Match OIDC to Keycloak `KC_HOSTNAME`. Hybrid stacks (tunnel issuer `.com`, APIs `.local`) should use:
+
 ```bash
-export YAAIF_OIDC_AUTHORITY=https://platform.yaaif.local/auth/realms/yaaif
+export YAAIF_OIDC_AUTHORITY=https://platform.yaaif.com/auth/realms/yaaif
 export YAAIF_OIDC_CLIENT_ID=yaaif-cursor
 export YAAIF_API_BASE_URL=https://platform.yaaif.local
 export YAAIF_AGENT_BASE_URL=https://platform.yaaif.local/agent-service
 export YAAIF_DEFAULT_TENANT_ID=<tenant-uuid>   # optional
 ```
+
+Do not point OIDC at `.local` if Keycloak’s hostname is `.com` — that breaks the login cookie (`Restart login cookie not found`). See [configure-environment.md](docs/configure-environment.md).
 
 ### Local symlink (developers)
 
@@ -82,6 +86,16 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 | `yaaif-create-skill` / `/yaaif-new-skill` | Author + load skill |
 | `yaaif-create-mcp` / `/yaaif-new-mcp` | Scaffold + deploy MCP |
 | `yaaif-create-ambient` / `/yaaif-new-workflow` | Ambient workflows |
+
+### Read / browse tools
+
+| Tool | Purpose |
+|------|--------|
+| `yaaif_catalog_overview` | Snapshot of agents, skills, MCPs, ambient |
+| `yaaif_agent_list` / `yaaif_agent_get` | Agents |
+| `yaaif_skill_list` / `yaaif_skill_get` / `yaaif_skill_read_file` / `yaaif_skill_file_tree` | Skills + files |
+| `yaaif_mcp_tools_list` / `yaaif_mcp_tool_get` / `yaaif_mcp_servers_list` / `yaaif_mcp_server_get` / `yaaif_mcp_deployments_list` | MCP catalog + deployments |
+| `yaaif_ambient_agent_list` / `yaaif_ambient_agent_get` / `yaaif_ambient_workflow_list` / `yaaif_ambient_workflow_get` / `yaaif_ambient_runs_list` | Ambient |
 
 ## Docs
 

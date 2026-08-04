@@ -21924,7 +21924,9 @@ function trimSlash(v) {
   return v.replace(/\/+$/, "");
 }
 function env(name, fallback = "") {
-  return (process.env[name] ?? fallback).trim();
+  const v = (process.env[name] ?? "").trim();
+  if (!v || /^\$\{[A-Z0-9_]+\}$/.test(v)) return fallback;
+  return v;
 }
 function loadConfig() {
   const scopes = env("YAAIF_OIDC_SCOPES", "openid profile email offline_access").split(/\s+/).filter(Boolean);
@@ -22105,6 +22107,44 @@ function registerSkills(server, ctx) {
       return fail(String(e));
     }
   });
+  server.registerTool("yaaif_skill_runtime_status", {
+    description: "Get in-memory skill runtime status for the tenant.",
+    inputSchema: {}
+  }, async () => {
+    try {
+      return ok("Fetched skill runtime status.", {
+        result: await ctx.api.agentJSON("GET", "/api/skills/runtime-status")
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_skill_file_tree", {
+    description: "List the tenant skill files tree (Advanced Skills workspace).",
+    inputSchema: { path: external_exports.string().optional() }
+  }, async ({ path: treePath }) => {
+    const params = new URLSearchParams();
+    if (treePath) params.set("path", treePath);
+    const path2 = `/api/skill-files/tree${params.size ? `?${params}` : ""}`;
+    try {
+      return ok("Fetched skill file tree.", { result: await ctx.api.agentJSON("GET", path2) });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_skill_read_file", {
+    description: "Read a skill pack file from the tenant skills tree.",
+    inputSchema: { path: external_exports.string() }
+  }, async ({ path: filePath }) => {
+    try {
+      const path2 = `/api/skill-files/content?path=${encodeURIComponent(filePath)}`;
+      return ok(`Read skill file ${filePath}.`, {
+        result: await ctx.api.agentJSON("GET", path2)
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
   server.registerTool("yaaif_skill_create", {
     description: "Create a skill pack in YAAIF (writes SKILL.md + skill_configs).",
     inputSchema: {
@@ -22230,6 +22270,66 @@ function registerSkills(server, ctx) {
   });
 }
 function registerAmbient(server, ctx) {
+  server.registerTool("yaaif_agent_list", {
+    description: "List agent definitions in the tenant (chat and workflow).",
+    inputSchema: {
+      q: external_exports.string().optional(),
+      agent_type: external_exports.string().optional(),
+      limit: external_exports.number().optional()
+    }
+  }, async ({ q, agent_type, limit }) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (agent_type) params.set("agent_type", agent_type);
+    if (limit) params.set("limit", String(limit));
+    const path2 = `/api/agents${params.size ? `?${params}` : ""}`;
+    try {
+      return ok("Listed agents.", { result: await ctx.api.agentJSON("GET", path2) });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_agent_get", {
+    description: "Get one agent definition by id (includes skill_ids).",
+    inputSchema: { agent_id: external_exports.string() }
+  }, async ({ agent_id }) => {
+    try {
+      return ok("Fetched agent.", {
+        agent: await ctx.api.agentJSON("GET", `/api/agents/${encodeURIComponent(agent_id)}`)
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_ambient_agent_list", {
+    description: "List ambient agent configs in the tenant.",
+    inputSchema: { q: external_exports.string().optional(), limit: external_exports.number().optional() }
+  }, async ({ q, limit }) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (limit) params.set("limit", String(limit));
+    const path2 = `/api/ambient/agents${params.size ? `?${params}` : ""}`;
+    try {
+      return ok("Listed ambient agents.", { result: await ctx.api.agentJSON("GET", path2) });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_ambient_agent_get", {
+    description: "Get one ambient agent config by id.",
+    inputSchema: { ambient_agent_id: external_exports.string() }
+  }, async ({ ambient_agent_id }) => {
+    try {
+      return ok("Fetched ambient agent.", {
+        ambient_agent: await ctx.api.agentJSON(
+          "GET",
+          `/api/ambient/agents/${encodeURIComponent(ambient_agent_id)}`
+        )
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
   server.registerTool("yaaif_agent_create", {
     description: "Create a chat or workflow agent definition.",
     inputSchema: {
@@ -22625,14 +22725,101 @@ function registerMcp(server, ctx) {
   });
   server.registerTool("yaaif_mcp_tools_list", {
     description: "List external MCP tools in the tenant catalog.",
-    inputSchema: { q: external_exports.string().optional() }
-  }, async ({ q }) => {
-    const path2 = q ? `/api/mcp-tools?q=${encodeURIComponent(q)}` : "/api/mcp-tools";
+    inputSchema: { q: external_exports.string().optional(), limit: external_exports.number().optional() }
+  }, async ({ q, limit }) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (limit) params.set("limit", String(limit));
+    const path2 = `/api/mcp-tools${params.size ? `?${params}` : ""}`;
     try {
       return ok("Listed MCP tools.", { result: await ctx.api.agentJSON("GET", path2) });
     } catch (e) {
       return fail(String(e));
     }
+  });
+  server.registerTool("yaaif_mcp_tool_get", {
+    description: "Get one external MCP tool by id.",
+    inputSchema: { tool_id: external_exports.string() }
+  }, async ({ tool_id }) => {
+    try {
+      return ok("Fetched MCP tool.", {
+        tool: await ctx.api.agentJSON("GET", `/api/mcp-tools/${encodeURIComponent(tool_id)}`)
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_mcp_servers_list", {
+    description: "List registered external MCP servers in the tenant catalog.",
+    inputSchema: { q: external_exports.string().optional(), limit: external_exports.number().optional() }
+  }, async ({ q, limit }) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (limit) params.set("limit", String(limit));
+    const path2 = `/api/mcp-tools/servers${params.size ? `?${params}` : ""}`;
+    try {
+      return ok("Listed MCP servers.", { result: await ctx.api.agentJSON("GET", path2) });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_mcp_server_get", {
+    description: "Get one external MCP server (and its tools) by id.",
+    inputSchema: { server_id: external_exports.string() }
+  }, async ({ server_id }) => {
+    try {
+      return ok("Fetched MCP server.", {
+        server: await ctx.api.agentJSON("GET", `/api/mcp-tools/servers/${encodeURIComponent(server_id)}`)
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_mcp_deployments_list", {
+    description: "List MCP deployments (api-server / deployment-service).",
+    inputSchema: { q: external_exports.string().optional(), limit: external_exports.number().optional() }
+  }, async ({ q, limit }) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (limit) params.set("limit", String(limit));
+    const path2 = `/api/mcp-deployments${params.size ? `?${params}` : ""}`;
+    try {
+      return ok("Listed MCP deployments.", { result: await ctx.api.apiJSON("GET", path2) });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_catalog_overview", {
+    description: "Read-only snapshot of the current tenant: agents, skills, MCP tools/servers/deployments, ambient agents/workflows (paginated summaries).",
+    inputSchema: {
+      q: external_exports.string().optional(),
+      limit: external_exports.number().optional()
+    }
+  }, async ({ q, limit }) => {
+    const lim = limit && limit > 0 ? limit : 50;
+    const params = new URLSearchParams({ limit: String(lim) });
+    if (q) params.set("q", q);
+    const qs = `?${params}`;
+    const out = {};
+    const errors = {};
+    const load = async (key, fn) => {
+      try {
+        out[key] = await fn();
+      } catch (e) {
+        errors[key] = String(e);
+      }
+    };
+    await Promise.all([
+      load("agents", () => ctx.api.agentJSON("GET", `/api/agents${qs}`)),
+      load("skills", () => ctx.api.agentJSON("GET", `/api/skills${qs}`)),
+      load("mcp_tools", () => ctx.api.agentJSON("GET", `/api/mcp-tools${qs}`)),
+      load("mcp_servers", () => ctx.api.agentJSON("GET", `/api/mcp-tools/servers${qs}`)),
+      load("mcp_deployments", () => ctx.api.apiJSON("GET", `/api/mcp-deployments${qs}`)),
+      load("ambient_agents", () => ctx.api.agentJSON("GET", `/api/ambient/agents${qs}`)),
+      load("ambient_workflows", () => ctx.api.agentJSON("GET", `/api/ambient/workflows${qs}`))
+    ]);
+    if (Object.keys(errors).length) out.errors = errors;
+    return ok("Catalog overview loaded.", out);
   });
 }
 
