@@ -1,7 +1,7 @@
 {
   "name": "yaaif",
   "description": "Authenticate to YAAIF and create skills, MCP deployments, and ambient workflows from Cursor.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": {
     "name": "YAAIF / BeezLabs",
     "email": "support@yaaif.com"
@@ -9,7 +9,7 @@
   "homepage": "https://github.com/yaaif/cursor-plugin",
   "repository": "https://github.com/yaaif/cursor-plugin",
   "license": "Apache-2.0",
-  "logo": "assets/logo.svg",
+  "logo": "https://raw.githubusercontent.com/yaaif/cursor-plugin/main/assets/logo.png",
   "keywords": [
     "yaaif",
     "skills",
@@ -57,5 +57,6 @@
       "YAAIF_API_BASE_URL",
       "YAAIF_AGENT_BASE_URL"
     ]
-  }
+  },
+  "displayName": "YAAIF"
 }
