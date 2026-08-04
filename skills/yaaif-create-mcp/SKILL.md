@@ -1,9 +1,8 @@
 ---
 name: yaaif-create-mcp
 description: >-
-  Scaffold a YAAIF MCP server, deploy it via mcp-deployments, and register tools
-  in the tenant catalog. Use when the user asks to create/deploy MCP tools on
-  YAAIF from Cursor.
+  Scaffold a YAAIF MCP server, deploy via mcp-deployments, and register tools.
+  For customer/partner workspaces without monorepo access.
 ---
 
 # Create MCP tools and deploy on YAAIF
@@ -20,53 +19,29 @@ Task Progress:
 
 ## Prerequisites
 
-Run skill `yaaif-auth` first.
+`yaaif-auth` completed.
 
 ## Design
 
-Write a short tool contract list (name, description, inputs). Names become catalog names — keep them stable and snake_case.
-
-Templates:
-
-- Go: https://github.com/yaaif/mcp-server-templates-go
-- Python: https://github.com/yaaif/mcp-server-templates-py
-
-Domain persistence should use context-store when applicable (see platform MCP README).
+Write short contracts (name, description, inputs). Names become catalog names — keep them stable snake_case. See [references/templates.md](references/templates.md).
 
 ## Scaffold
 
-Call `yaaif_mcp_scaffold` with:
+`yaaif_mcp_scaffold` with kebab `name` (no `-mcp-service` suffix), `language` `go`|`python`, and absolute `workspace_root`.
 
-- `name`: kebab id without `-mcp-service`
-- `language`: `go` or `python`
-- `workspace_root`: absolute workspace path
-- `target_dir`: usually `mcp-servers`
+Implement tools, build/push an image the customer's deployment-service can pull.
 
-Implement tools in the scaffolded tree. Build and push a container image the deployment-service can pull.
+## Full deploy
 
-## Full deploy path
+1. `yaaif_mcp_deployment_create` (`auto_register` + `auto_import_tools` true)
+2. `yaaif_mcp_deployment_deploy`
+3. Poll `yaaif_mcp_deployment_status` / logs
+4. `yaaif_mcp_deployment_register` if needed
 
-1. `yaaif_mcp_deployment_create` with:
-   - `name`, `image`
-   - `deployment_method`: `docker_compose` or `kubernetes_gitops`
-   - `container_port` (often 8080)
-   - `mcp_path`: `/mcp`
-   - `endpoint_mode`: `docker_name` (local compose) unless host override needed
-   - `transport_type`: `HTTP`
-   - `auto_register`: true
-   - `auto_import_tools`: true
-2. `yaaif_mcp_deployment_deploy` with returned `deployment_id`.
-3. Poll `yaaif_mcp_deployment_status` (and `yaaif_mcp_deployment_logs` on failure).
-4. If tools are not imported, `yaaif_mcp_deployment_register`.
+## Fallback
 
-## Fallback (endpoint already running)
-
-Use `yaaif_mcp_link_or_create` per tool and/or `yaaif_mcp_server_refresh` after creating a server entry.
+`yaaif_mcp_link_or_create` against an already-running endpoint; optional `yaaif_mcp_server_refresh`.
 
 ## Verify
 
-`yaaif_mcp_tools_list` with `q` matching the tool prefix. Confirm exact names before wiring skills/workflows.
-
-## Hand-off
-
-Report: service path, image tag, deployment id, registered tool names.
+`yaaif_mcp_tools_list` — confirm exact tool names before wiring skills/workflows.

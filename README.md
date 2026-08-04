@@ -1,72 +1,78 @@
 # YAAIF Cursor Plugin
 
-Cursor plugin that authenticates to YAAIF and exposes MCP tools + agent skills to:
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-1. Create skills and load them into the tenant catalog
-2. Scaffold / deploy MCP servers and register tools
-3. Create ambient workflows and test-trigger them
+Official Cursor plugin for **customers and partner developers** to build on [YAAIF](https://yaaif.com):
 
-## Layout
+1. Authenticate to a YAAIF environment (Keycloak OIDC + PKCE)
+2. Create skills and load them into the tenant catalog
+3. Scaffold / deploy MCP servers and register tools
+4. Create ambient workflows and test-trigger them
 
-```text
-integrations/cursor-plugin/
-├── .cursor-plugin/plugin.json
-├── mcp.json
-├── rules/yaaif-platform.mdc
-├── skills/
-│   ├── yaaif-auth/
-│   ├── yaaif-create-skill/
-│   ├── yaaif-create-mcp/
-│   └── yaaif-create-ambient/
-└── mcp-server/                 # stdio MCP bridge (Go)
-```
+**Repository:** https://github.com/yaaif/cursor-plugin  
+**Marketplace name:** `yaaif`
 
-## Local install
+This repo is also consumed by [yaaif-platform](https://github.com/yaaif/yaaif-platform) as a git submodule at `integrations/cursor-plugin`.
 
-```bash
-ln -s /Users/kn/Works/BeezLabs/yaaif-platform/integrations/cursor-plugin \
-  ~/.cursor/plugins/local/yaaif
-```
+## Install
 
-Reload Cursor (`Developer: Reload Window`). Configure env for the MCP server (Customize → MCP / plugin env), or export before launching Cursor:
+### Cursor Marketplace / Team Marketplace
 
-```bash
-export YAAIF_OIDC_AUTHORITY=http://localhost:8080/auth/realms/yaaif
-export YAAIF_OIDC_CLIENT_ID=yaaif-cursor
-export YAAIF_API_BASE_URL=http://localhost:8084
-export YAAIF_AGENT_BASE_URL=http://localhost:8086
-export YAAIF_DEFAULT_TENANT_ID=<tenant-uuid>   # optional
-```
+Install **yaaif**, then configure plugin variables (Customize → Plugins → Configure):
 
-Copy [`mcp-server/.env.example`](mcp-server/.env.example) to `mcp-server/.env` for `go run` defaults.
+| Variable | Example |
+|----------|---------|
+| `YAAIF_OIDC_AUTHORITY` | `https://platform.example.com/auth/realms/yaaif` |
+| `YAAIF_API_BASE_URL` | `https://platform.example.com` (api-server origin) |
+| `YAAIF_AGENT_BASE_URL` | `https://platform.example.com/agent-service` |
+| `YAAIF_DEFAULT_TENANT_ID` | optional UUID |
+| `YAAIF_OIDC_CLIENT_ID` | default `yaaif-cursor` |
 
-### Build the bridge (optional)
+Your YAAIF operator must enable the public Keycloak client `yaaif-cursor` (see platform script `scripts/keycloak/ensure-yaaif-cursor-client.sh`).
+
+### Local symlink (developers)
 
 ```bash
-cd integrations/cursor-plugin/mcp-server
-go build -o bin/yaaif-cursor-mcp ./cmd/yaaif-cursor-mcp
+git clone https://github.com/yaaif/cursor-plugin.git
+cd cursor-plugin/packages/mcp && npm install && npm run build && cd ../..
+ln -sf "$PWD" ~/.cursor/plugins/local/yaaif
 ```
 
-`run.sh` prefers the built binary, otherwise `go run`.
+Reload Cursor.
 
-## Auth
+## Runtime
 
-- Keycloak public client: `yaaif-cursor` (PKCE S256)
-- Tokens cached at `~/.yaaif/cursor/session.json`
-- API calls send `Authorization: Bearer` + `X-Tenant-ID`
+MCP bridge is TypeScript (`packages/mcp`), launched via:
 
-First agent step: `yaaif_login` → `yaaif_set_tenant` → `yaaif_whoami`.
+```json
+{ "command": "node", "args": ["packages/mcp/dist/cli.js"] }
+```
 
-## MCP tool groups
+After npm publish:
 
-| Group | Tools |
-|-------|--------|
-| Auth | `yaaif_login`, `yaaif_logout`, `yaaif_whoami`, `yaaif_list_tenants`, `yaaif_set_tenant` |
-| Skills | `yaaif_skill_create`, `yaaif_skill_write_file`, `yaaif_skill_enable`, `yaaif_skill_map_agents`, `yaaif_skill_validate`, `yaaif_skill_refresh`, `yaaif_skill_runtime_reload`, `yaaif_skill_list`, `yaaif_skill_get` |
-| MCP deploy | `yaaif_mcp_scaffold`, `yaaif_mcp_deployment_create`, `yaaif_mcp_deployment_deploy`, `yaaif_mcp_deployment_register`, `yaaif_mcp_deployment_status`, `yaaif_mcp_deployment_logs`, `yaaif_mcp_link_or_create`, `yaaif_mcp_server_refresh`, `yaaif_mcp_tools_list` |
-| Ambient | `yaaif_agent_create`, `yaaif_ambient_agent_create`, `yaaif_ambient_workflow_create`, `yaaif_ambient_workflow_update`, `yaaif_ambient_workflow_get`, `yaaif_ambient_workflow_list`, `yaaif_ambient_test_trigger`, `yaaif_ambient_runs_list`, `yaaif_ambient_run_get` |
+```bash
+npx -y @yaaif/cursor-mcp@0.2.0
+```
+
+Requires **Node.js ≥ 20**. No Go toolchain.
+
+## Skills and commands
+
+| Skill / command | Purpose |
+|-----------------|--------|
+| `yaaif-auth` / `/yaaif-login` | Login + tenant |
+| `yaaif-create-skill` / `/yaaif-new-skill` | Author + load skill |
+| `yaaif-create-mcp` / `/yaaif-new-mcp` | Scaffold + deploy MCP |
+| `yaaif-create-ambient` / `/yaaif-new-workflow` | Ambient workflows |
 
 ## Docs
 
-- [Install & smoke checklist](docs/install-and-smoke.md)
-- Platform Keycloak: [`docs/auth/keycloak.md`](../../docs/auth/keycloak.md)
+- [Getting started](docs/getting-started.md)
+- [Configure environment](docs/configure-environment.md)
+- [Partner workflows](docs/partner-workflows.md)
+- [Threat model](docs/threat-model.md)
+- [SECURITY.md](SECURITY.md)
+
+## License
+
+Apache-2.0 — see [LICENSE](LICENSE).

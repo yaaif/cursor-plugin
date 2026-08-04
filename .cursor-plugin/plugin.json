@@ -1,17 +1,23 @@
 {
   "name": "yaaif",
   "description": "Authenticate to YAAIF and create skills, MCP deployments, and ambient workflows from Cursor.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
-    "name": "YAAIF / BeezLabs"
+    "name": "YAAIF / BeezLabs",
+    "email": "support@yaaif.com"
   },
+  "homepage": "https://github.com/yaaif/cursor-plugin",
+  "repository": "https://github.com/yaaif/cursor-plugin",
+  "license": "Apache-2.0",
+  "logo": "assets/logo.svg",
   "keywords": [
     "yaaif",
     "skills",
     "mcp",
     "ambient",
     "workflows",
-    "keycloak"
+    "keycloak",
+    "sap"
   ],
   "variables": {
     "type": "object",
@@ -19,25 +25,28 @@
       "YAAIF_OIDC_AUTHORITY": {
         "type": "string",
         "title": "OIDC authority",
-        "description": "Keycloak realm URL, e.g. http://localhost:8080/auth/realms/yaaif",
-        "default": "http://localhost:8080/auth/realms/yaaif"
+        "description": "Keycloak realm URL, e.g. https://platform.example.com/auth/realms/yaaif"
       },
       "YAAIF_API_BASE_URL": {
         "type": "string",
         "title": "API server base URL",
-        "description": "api-server origin (no trailing path)",
-        "default": "http://localhost:8084"
+        "description": "api-server origin (no path suffix)"
       },
       "YAAIF_AGENT_BASE_URL": {
         "type": "string",
         "title": "Agent service base URL",
-        "description": "agent-service origin",
-        "default": "http://localhost:8086"
+        "description": "agent-service origin"
       },
       "YAAIF_DEFAULT_TENANT_ID": {
         "type": "string",
         "title": "Default tenant ID",
         "description": "Optional tenant UUID used when session has none set"
+      },
+      "YAAIF_OIDC_CLIENT_ID": {
+        "type": "string",
+        "title": "OIDC client ID",
+        "description": "Public Keycloak client (default yaaif-cursor)",
+        "default": "yaaif-cursor"
       }
     },
     "required": [

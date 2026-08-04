@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  mcp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: packages/mcp/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Smoke tools/list
+        run: |
+          python3 - <<'PY'
+          import json, subprocess, time
+          proc = subprocess.Popen(["node","dist/cli.js"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+          def send(o):
+              proc.stdin.write(json.dumps(o)+"\n"); proc.stdin.flush()
+          send({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}})
+          send({"jsonrpc":"2.0","method":"notifications/initialized"})
+          send({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}})
+          time.sleep(1)
+          proc.stdin.close()
+          out,_=proc.communicate(timeout=5)
+          tools=[json.loads(l) for l in out.splitlines() if l.strip()]
+          names=[t["name"] for t in [m for m in tools if m.get("id")==2][0]["result"]["tools"]]
+          assert "yaaif_configure_check" in names
+          assert len(names) >= 33
+          print("ok", len(names))
+          PY

@@ -2,8 +2,7 @@
 name: yaaif-create-skill
 description: >-
   Author a YAAIF SKILL.md pack and load it into the tenant catalog via the
-  yaaif Cursor MCP bridge (create, enable, map agents, refresh). Use when the
-  user asks to create/load a YAAIF skill from Cursor.
+  yaaif Cursor MCP bridge. Works without the yaaif-platform monorepo.
 ---
 
 # Create and load a YAAIF skill
@@ -11,7 +10,7 @@ description: >-
 ```
 Task Progress:
 - [ ] 1. Auth + tenant
-- [ ] 2. Capture intent / skill type
+- [ ] 2. Capture intent
 - [ ] 3. Draft SKILL.md
 - [ ] 4. yaaif_skill_create (+ files)
 - [ ] 5. Enable + map agents
@@ -20,29 +19,27 @@ Task Progress:
 
 ## Prerequisites
 
-Run skill `yaaif-auth` first (`yaaif_whoami` / login / tenant).
+Run `yaaif-auth` first.
 
-## Authoring rules
+## Authoring
 
-- Prefer lean chat skills unless SAP GUI / ambient / always-active is required.
-- `id` is the path relative to the tenant skills root (e.g. `domain/my-skill`).
-- Final directory segment must equal frontmatter `name`.
-- Use **real** MCP tool names only in `tools` / `allowed_tools`.
-- Chat→ambient skills must include `list_ambient_workflows` and `trigger_ambient_workflow`.
+Read [references/frontmatter.md](references/frontmatter.md). Prefer lean chat skills unless SAP GUI / ambient / always-active is required.
+
+- `id` is the path relative to the tenant skills root (e.g. `domain/my-skill`)
+- Final path segment must equal frontmatter `name`
+- Use **real** MCP catalog tool names only
+- Chat→ambient skills must include `list_ambient_workflows` and `trigger_ambient_workflow`
+
+Optionally write a local draft in the user's workspace, then load via API.
 
 ## Load into YAAIF
 
-1. `yaaif_skill_create` with:
-   - `id`, `description`, `instruction` (markdown body)
-   - `tools` / `allowed_tools`
-   - `enabled: true`
-   - `updated_by: yaaif-cursor`
-2. For companions (examples/references), `yaaif_skill_write_file` with relative `path`.
-3. `yaaif_skill_enable` if create left it disabled.
-4. `yaaif_skill_map_agents` with target `agent_id` + full desired `skill_ids` list (bulk replace).
-5. `yaaif_skill_validate` (optional, `strict: true` for release).
-6. `yaaif_skill_refresh` then `yaaif_skill_runtime_reload`.
+1. `yaaif_skill_create` with `id`, `description`, `instruction`, `tools` / `allowed_tools`, `enabled: true`
+2. Companions via `yaaif_skill_write_file`
+3. `yaaif_skill_map_agents` (bulk replace — include full desired skill_ids list)
+4. `yaaif_skill_validate` (optional)
+5. `yaaif_skill_refresh` then `yaaif_skill_runtime_reload`
 
 ## Hand-off
 
-Report: skill id, enabled flag, mapped agent ids, validation summary.
+Report skill id, enabled flag, mapped agent ids.
