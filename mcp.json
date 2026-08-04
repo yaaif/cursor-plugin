@@ -4,6 +4,7 @@
       "command": "node",
       "args": ["${CURSOR_PLUGIN_ROOT}/dist/yaaif-cursor-mcp.mjs"],
       "env": {
+        "YAAIF_PLATFORM_PROFILE": "${YAAIF_PLATFORM_PROFILE}",
         "YAAIF_OIDC_AUTHORITY": "${YAAIF_OIDC_AUTHORITY}",
         "YAAIF_OIDC_CLIENT_ID": "${YAAIF_OIDC_CLIENT_ID}",
         "YAAIF_API_BASE_URL": "${YAAIF_API_BASE_URL}",

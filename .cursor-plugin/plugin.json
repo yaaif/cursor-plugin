@@ -1,7 +1,7 @@
 {
   "name": "yaaif",
   "description": "Authenticate to YAAIF, plan use cases, and create skills, MCP deployments, and ambient workflows from Cursor.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": {
     "name": "YAAIF / BeezLabs",
     "email": "support@yaaif.com"
@@ -22,10 +22,17 @@
   "variables": {
     "type": "object",
     "properties": {
+      "YAAIF_PLATFORM_PROFILE": {
+        "type": "string",
+        "title": "Platform profile",
+        "description": "Named profile: hosted | local-hybrid | local | custom id (overrides URL defaults when set)",
+        "default": "hosted",
+        "enum": ["hosted", "local-hybrid", "local"]
+      },
       "YAAIF_OIDC_AUTHORITY": {
         "type": "string",
         "title": "OIDC authority",
-        "description": "Keycloak realm URL",
+        "description": "Keycloak realm URL (optional if using a platform profile)",
         "default": "https://platform.yaaif.ai/auth/realms/yaaif"
       },
       "YAAIF_API_BASE_URL": {

@@ -24,7 +24,7 @@ Marketplace / local installs currently run the **committed** bridge bundle:
    npm publish --access public
    ```
 
-   Package version is in `packages/mcp/package.json` (currently **0.4.0**).
+   Package version is in `packages/mcp/package.json` (currently **0.5.0**).
 
 3. After publish succeeds, optionally switch root `mcp.json` to npx (customers without a local bundle):
 
@@ -33,8 +33,9 @@ Marketplace / local installs currently run the **committed** bridge bundle:
   "mcpServers": {
     "yaaif": {
       "command": "npx",
-      "args": ["-y", "@yaaif/cursor-mcp@0.4.0"],
+      "args": ["-y", "@yaaif/cursor-mcp@0.5.0"],
       "env": {
+        "YAAIF_PLATFORM_PROFILE": "${YAAIF_PLATFORM_PROFILE}",
         "YAAIF_OIDC_AUTHORITY": "${YAAIF_OIDC_AUTHORITY}",
         "YAAIF_OIDC_CLIENT_ID": "${YAAIF_OIDC_CLIENT_ID}",
         "YAAIF_API_BASE_URL": "${YAAIF_API_BASE_URL}",

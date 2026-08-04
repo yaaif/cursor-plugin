@@ -32,6 +32,7 @@ export YAAIF_DEFAULT_TENANT_ID=<tenant-uuid>   # optional
 
 | Variable | Default |
 |----------|---------|
+| `YAAIF_PLATFORM_PROFILE` | `hosted` (`local-hybrid` / `local` / custom id) |
 | `YAAIF_OIDC_AUTHORITY` | `https://platform.yaaif.ai/auth/realms/yaaif` |
 | `YAAIF_API_BASE_URL` | `https://platform.yaaif.ai` |
 | `YAAIF_AGENT_BASE_URL` | `https://platform.yaaif.ai/agent-service` |
@@ -39,6 +40,8 @@ export YAAIF_DEFAULT_TENANT_ID=<tenant-uuid>   # optional
 | `YAAIF_APPROVAL_BASE_URL` | `https://platform.yaaif.ai/approval-service` |
 | `YAAIF_DEFAULT_TENANT_ID` | optional UUID |
 | `YAAIF_OIDC_CLIENT_ID` | `yaaif-cursor` |
+
+Prefer **`yaaif_platform_use`** + **`yaaif_ensure_session`** over hand-editing every URL.
 
 Your YAAIF operator must enable the public Keycloak client `yaaif-cursor` (see platform script `scripts/keycloak/ensure-yaaif-cursor-client.sh`).
 
@@ -77,7 +80,7 @@ MCP bridge is TypeScript (`packages/mcp`), launched via:
 After npm publish:
 
 ```bash
-npx -y @yaaif/cursor-mcp@0.4.0
+npx -y @yaaif/cursor-mcp@0.5.0
 ```
 
 Requires **Node.js ≥ 20**. No Go toolchain.
@@ -86,7 +89,7 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 
 | Skill / command | Purpose |
 |-----------------|--------|
-| `yaaif-auth` / `/yaaif-login` | Login + tenant |
+| `yaaif-auth` / `/yaaif-login` | Platform profile + login + tenant |
 | `yaaif-plan-usecase` / `/yaaif-plan` | Use-case plan → approve → create agents/skills/workflows |
 | `yaaif-create-skill` / `/yaaif-new-skill` | Author + load skill |
 | `yaaif-create-mcp` / `/yaaif-new-mcp` | Scaffold + deploy MCP |

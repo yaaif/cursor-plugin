@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0
+
+- Platform profiles: `hosted` / `local-hybrid` / `local` + custom save (`yaaif_platform_*`)
+- `yaaif_ensure_session` one-shot auth + tenant resolution
+- Smart tenants: set by name/slug/uuid, normalized list, last-tenant / single auto-select
+- Session stores `profile_id` + `oidc_authority`; issuer mismatch forces re-login
+- OIDC discovery in `configure_check`; optional Keycloak `end_session` on logout
+- Auth skill / `/yaaif-login` updated for profile-first flow
+
 ## 0.4.0
 
 - Safe skill mapping: `yaaif_skill_map_agents_merge`

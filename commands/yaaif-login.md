@@ -1,11 +1,11 @@
 ---
 name: yaaif-login
-description: Authenticate to YAAIF and select an active tenant
+description: Select YAAIF platform profile, authenticate, and select a tenant
 ---
 
 Use the `yaaif-auth` skill.
 
-1. Call `yaaif_configure_check`.
-2. If not authenticated, call `yaaif_login`.
-3. Call `yaaif_list_tenants` and `yaaif_set_tenant` if needed.
-4. Confirm with `yaaif_whoami` and report email + tenant id.
+1. Optional: `yaaif_platform_use` (`hosted` | `local-hybrid` | `local` | custom).
+2. Prefer `yaaif_ensure_session` with `login_if_needed: true` (optional `profile_id` / `tenant`).
+3. If `needs_tenant_selection`, call `yaaif_set_tenant` with name, slug, or uuid.
+4. Confirm with `yaaif_whoami` (profile + email + tenant name/id).

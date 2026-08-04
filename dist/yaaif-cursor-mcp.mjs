@@ -21667,6 +21667,22 @@ defineLazyProperty(apps, "browserPrivate", () => "browserPrivate");
 var open_default = open;
 
 // src/auth/oidc.ts
+var ReauthRequiredError = class extends Error {
+  code = "reauth_required";
+  constructor(message) {
+    super(message);
+    this.name = "ReauthRequiredError";
+  }
+};
+var IssuerMismatchError = class extends Error {
+  constructor(message, sessionAuthority, configAuthority) {
+    super(message);
+    this.sessionAuthority = sessionAuthority;
+    this.configAuthority = configAuthority;
+    this.name = "IssuerMismatchError";
+  }
+  code = "issuer_mismatch";
+};
 function b64url(buf) {
   return buf.toString("base64url");
 }
@@ -21694,10 +21710,25 @@ function tokenSetFromJson(raw, previousRefresh) {
     id_token: typeof raw.id_token === "string" ? raw.id_token : void 0
   };
 }
+function normalizeAuthority(v) {
+  return v.replace(/\/+$/, "").toLowerCase();
+}
 var AuthClient = class {
   constructor(cfg, store) {
     this.cfg = cfg;
     this.store = store;
+  }
+  assertIssuerMatch(sess) {
+    if (!sess?.tokens.access_token || !sess.oidc_authority) return;
+    const sessionAuth = normalizeAuthority(sess.oidc_authority);
+    const configAuth = normalizeAuthority(this.cfg.oidcAuthority);
+    if (sessionAuth && configAuth && sessionAuth !== configAuth) {
+      throw new IssuerMismatchError(
+        `session was issued for ${sess.oidc_authority} but config points at ${this.cfg.oidcAuthority}; switch profile or login again`,
+        sess.oidc_authority,
+        this.cfg.oidcAuthority
+      );
+    }
   }
   async login() {
     await this.store.ensureHome(this.cfg.cursorHome);
@@ -21708,10 +21739,19 @@ var AuthClient = class {
     await new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
     const port = server.address().port;
     const redirectUri = `http://127.0.0.1:${port}/callback`;
+    const authUrl = new URL(`${this.cfg.oidcAuthority}/protocol/openid-connect/auth`);
+    authUrl.searchParams.set("client_id", this.cfg.oidcClientId);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("scope", this.cfg.oidcScopes.join(" "));
+    authUrl.searchParams.set("state", state);
+    authUrl.searchParams.set("code_challenge", challenge);
+    authUrl.searchParams.set("code_challenge_method", "S256");
+    const authUrlStr = authUrl.toString();
     const code = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         server.close();
-        reject(new Error("login timed out waiting for browser callback"));
+        reject(new Error(`login timed out waiting for browser callback. Open this URL manually: ${authUrlStr}`));
       }, 5 * 60 * 1e3);
       server.on("request", (req, res) => {
         const url = new URL(req.url ?? "/", redirectUri);
@@ -21739,24 +21779,18 @@ var AuthClient = class {
           reject(new Error("missing authorization code"));
           return;
         }
-        res.writeHead(200, { "Content-Type": "text/html" });
-        res.end("<html><body><h2>YAAIF login complete</h2><p>You can close this window.</p></body></html>");
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(`<!doctype html><html><body style="font-family:system-ui;padding:2rem">
+<h2>YAAIF login complete</h2>
+<p>Signed in to <code>${this.cfg.oidcAuthority}</code>.</p>
+<p>You can close this window and return to Cursor.</p>
+</body></html>`);
         clearTimeout(timer);
         resolve(authCode);
         server.close();
       });
-      const authUrl = new URL(`${this.cfg.oidcAuthority}/protocol/openid-connect/auth`);
-      authUrl.searchParams.set("client_id", this.cfg.oidcClientId);
-      authUrl.searchParams.set("response_type", "code");
-      authUrl.searchParams.set("redirect_uri", redirectUri);
-      authUrl.searchParams.set("scope", this.cfg.oidcScopes.join(" "));
-      authUrl.searchParams.set("state", state);
-      authUrl.searchParams.set("code_challenge", challenge);
-      authUrl.searchParams.set("code_challenge_method", "S256");
-      void open_default(authUrl.toString()).catch((e) => {
-        clearTimeout(timer);
-        server.close();
-        reject(e);
+      void open_default(authUrlStr).catch((e) => {
+        console.error(`Failed to open browser (${String(e)}). Open this URL: ${authUrlStr}`);
       });
     });
     const body = new URLSearchParams({
@@ -21782,42 +21816,66 @@ var AuthClient = class {
       subject: claims.subject,
       email: claims.email,
       name: claims.name,
-      tenant_id: this.cfg.defaultTenantId || void 0
+      tenant_id: this.cfg.defaultTenantId || void 0,
+      profile_id: this.cfg.activeProfileId || void 0,
+      oidc_authority: this.cfg.oidcAuthority
     };
     await this.store.save(session);
-    return session;
+    return { session, auth_url: authUrlStr };
   }
-  async logout() {
+  async logout(opts = {}) {
+    const sess = await this.store.load();
+    let end_session_url;
+    if (opts.endSession && sess?.tokens.id_token && sess.oidc_authority) {
+      const u = new URL(`${sess.oidc_authority}/protocol/openid-connect/logout`);
+      u.searchParams.set("id_token_hint", sess.tokens.id_token);
+      end_session_url = u.toString();
+      void open_default(end_session_url).catch(() => {
+      });
+    }
     await this.store.clear();
+    return { logged_out: true, end_session_url };
   }
   async session() {
     return this.store.load();
   }
-  async setTenant(tenantId) {
+  async setTenant(tenantId, tenantName) {
     const sess = await this.store.load();
-    if (!sess?.tokens.access_token) throw new Error("not authenticated; call yaaif_login first");
+    if (!sess?.tokens.access_token) throw new ReauthRequiredError("not authenticated; call yaaif_login first");
+    this.assertIssuerMatch(sess);
     sess.tenant_id = tenantId.trim();
+    if (tenantName) sess.tenant_name = tenantName.trim();
     await this.store.save(sess);
     return sess;
   }
   async accessToken() {
     let sess = await this.store.load();
-    if (!sess?.tokens.access_token) throw new Error("not authenticated; call yaaif_login first");
+    if (!sess?.tokens.access_token) throw new ReauthRequiredError("not authenticated; call yaaif_login first");
+    this.assertIssuerMatch(sess);
     const expiry = Date.parse(sess.tokens.expiry);
     if (Number.isFinite(expiry) && expiry - Date.now() > 45e3) {
       return { token: sess.tokens.access_token, session: sess };
     }
-    if (!sess.tokens.refresh_token) throw new Error("access token expired; call yaaif_login again");
-    sess = await this.refresh(sess);
+    if (!sess.tokens.refresh_token) {
+      await this.store.clear();
+      throw new ReauthRequiredError("access token expired and no refresh token; call yaaif_login again");
+    }
+    try {
+      sess = await this.refresh(sess);
+    } catch (e) {
+      await this.store.clear();
+      throw new ReauthRequiredError(`token refresh failed; call yaaif_login again (${String(e)})`);
+    }
     return { token: sess.tokens.access_token, session: sess };
   }
   async refresh(sess) {
+    const authority = sess.oidc_authority || this.cfg.oidcAuthority;
     const body = new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: sess.tokens.refresh_token ?? "",
       client_id: this.cfg.oidcClientId
     });
-    const tokenRes = await fetch(`${this.cfg.oidcAuthority}/protocol/openid-connect/token`, {
+    const tokenRes = await fetch(`${authority}/protocol/openid-connect/token`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body
@@ -21833,6 +21891,8 @@ var AuthClient = class {
       sess.email = claims.email ?? sess.email;
       sess.name = claims.name ?? sess.name;
     }
+    sess.oidc_authority = authority;
+    sess.profile_id = this.cfg.activeProfileId || sess.profile_id;
     await this.store.save(sess);
     return sess;
   }
@@ -21894,10 +21954,20 @@ var ApiClient = class {
     return this.doJSON(this.cfg.approvalBaseUrl, method, path2, body);
   }
   async doJSON(base, method, path2, body) {
-    const { token, session } = await this.auth.accessToken();
+    let token;
+    let session;
+    try {
+      ({ token, session } = await this.auth.accessToken());
+    } catch (e) {
+      const msg = String(e);
+      if (msg.includes("reauth_required") || msg.includes("issuer_mismatch") || msg.includes("not authenticated")) {
+        throw e;
+      }
+      throw e;
+    }
     const tenantId = (session.tenant_id || this.cfg.defaultTenantId || "").trim();
     if (!tenantId && !isTenantBootstrapPath(path2)) {
-      throw new Error("tenant not set; call yaaif_set_tenant or set YAAIF_DEFAULT_TENANT_ID");
+      throw new Error("tenant not set; call yaaif_set_tenant (name/slug/uuid) or yaaif_ensure_session");
     }
     const headers = {
       Authorization: `Bearer ${token}`,
@@ -21948,8 +22018,172 @@ function loadConfig() {
     ),
     approvalBaseUrl: trimSlash(env("YAAIF_APPROVAL_BASE_URL", `${apiBaseUrl}/approval-service`)),
     defaultTenantId: env("YAAIF_DEFAULT_TENANT_ID"),
-    cursorHome: env("YAAIF_CURSOR_HOME", join2(homedir(), ".yaaif", "cursor"))
+    cursorHome: env("YAAIF_CURSOR_HOME", join2(homedir(), ".yaaif", "cursor")),
+    activeProfileId: env("YAAIF_PLATFORM_PROFILE", "")
   };
+}
+
+// src/platform/profiles.ts
+import { mkdir as mkdir2, readFile as readFile2, rename as rename2, writeFile as writeFile2 } from "node:fs/promises";
+import { join as join3 } from "node:path";
+function trimSlash2(v) {
+  return v.replace(/\/+$/, "");
+}
+function deriveServiceUrls(apiBase) {
+  const base = trimSlash2(apiBase);
+  return {
+    api_base_url: base,
+    agent_base_url: `${base}/agent-service`,
+    control_plane_base_url: `${base}/control-plane-service`,
+    approval_base_url: `${base}/approval-service`
+  };
+}
+var BUILTIN_PROFILES = [
+  {
+    id: "hosted",
+    label: "Hosted (platform.yaaif.ai)",
+    description: "Production / hosted YAAIF \u2014 OIDC and APIs on platform.yaaif.ai",
+    builtin: true,
+    oidc_authority: "https://platform.yaaif.ai/auth/realms/yaaif",
+    ...deriveServiceUrls("https://platform.yaaif.ai"),
+    oidc_client_id: "yaaif-cursor"
+  },
+  {
+    id: "local-hybrid",
+    label: "Local hybrid (OIDC .com + APIs .local)",
+    description: "Local Traefik APIs on platform.yaaif.local with Keycloak issuer platform.yaaif.com (tunnel)",
+    builtin: true,
+    oidc_authority: "https://platform.yaaif.com/auth/realms/yaaif",
+    ...deriveServiceUrls("https://platform.yaaif.local"),
+    oidc_client_id: "yaaif-cursor"
+  },
+  {
+    id: "local",
+    label: "Local (all .local)",
+    description: "OIDC and APIs on platform.yaaif.local",
+    builtin: true,
+    oidc_authority: "https://platform.yaaif.local/auth/realms/yaaif",
+    ...deriveServiceUrls("https://platform.yaaif.local"),
+    oidc_client_id: "yaaif-cursor"
+  }
+];
+var ProfileStore = class {
+  constructor(cursorHome) {
+    this.cursorHome = cursorHome;
+    this.customPath = join3(cursorHome, "profiles.json");
+    this.activePath = join3(cursorHome, "active-profile.json");
+  }
+  customPath;
+  activePath;
+  async ensureHome() {
+    await mkdir2(this.cursorHome, { recursive: true, mode: 448 });
+  }
+  async listCustom() {
+    try {
+      const raw = JSON.parse(await readFile2(this.customPath, "utf8"));
+      return Array.isArray(raw.profiles) ? raw.profiles.filter((p) => p?.id && p.api_base_url) : [];
+    } catch (err) {
+      if (err.code === "ENOENT") return [];
+      throw err;
+    }
+  }
+  async saveCustom(profiles) {
+    await this.ensureHome();
+    const tmp = `${this.customPath}.tmp`;
+    await writeFile2(tmp, JSON.stringify({ profiles }, null, 2), { mode: 384 });
+    await rename2(tmp, this.customPath);
+  }
+  async upsertCustom(profile) {
+    const id = profile.id.trim().toLowerCase();
+    if (!id || BUILTIN_PROFILES.some((b) => b.id === id)) {
+      throw new Error(`profile id '${id}' is reserved or invalid`);
+    }
+    const cleaned = {
+      id,
+      label: profile.label || id,
+      description: profile.description,
+      builtin: false,
+      oidc_authority: trimSlash2(profile.oidc_authority),
+      api_base_url: trimSlash2(profile.api_base_url),
+      agent_base_url: trimSlash2(profile.agent_base_url || `${trimSlash2(profile.api_base_url)}/agent-service`),
+      control_plane_base_url: trimSlash2(
+        profile.control_plane_base_url || `${trimSlash2(profile.api_base_url)}/control-plane-service`
+      ),
+      approval_base_url: trimSlash2(
+        profile.approval_base_url || `${trimSlash2(profile.api_base_url)}/approval-service`
+      ),
+      oidc_client_id: profile.oidc_client_id || "yaaif-cursor"
+    };
+    const existing = await this.listCustom();
+    const next = [...existing.filter((p) => p.id !== id), cleaned];
+    await this.saveCustom(next);
+    return cleaned;
+  }
+  async deleteCustom(profileId) {
+    const id = profileId.trim().toLowerCase();
+    const existing = await this.listCustom();
+    const next = existing.filter((p) => p.id !== id);
+    if (next.length === existing.length) return false;
+    await this.saveCustom(next);
+    return true;
+  }
+  async listAll() {
+    return [...BUILTIN_PROFILES, ...await this.listCustom()];
+  }
+  async get(profileId) {
+    const id = profileId.trim().toLowerCase();
+    return (await this.listAll()).find((p) => p.id === id) ?? null;
+  }
+  async getActive() {
+    try {
+      return JSON.parse(await readFile2(this.activePath, "utf8"));
+    } catch (err) {
+      if (err.code === "ENOENT") return null;
+      throw err;
+    }
+  }
+  async setActive(profileId) {
+    await this.ensureHome();
+    const profile = await this.get(profileId);
+    if (!profile) throw new Error(`unknown profile: ${profileId}`);
+    const state = { profile_id: profile.id, updated_at: (/* @__PURE__ */ new Date()).toISOString() };
+    const tmp = `${this.activePath}.tmp`;
+    await writeFile2(tmp, JSON.stringify(state, null, 2), { mode: 384 });
+    await rename2(tmp, this.activePath);
+    return state;
+  }
+};
+function applyProfileToConfig(cfg, profile) {
+  cfg.oidcAuthority = trimSlash2(profile.oidc_authority);
+  cfg.apiBaseUrl = trimSlash2(profile.api_base_url);
+  cfg.agentBaseUrl = trimSlash2(profile.agent_base_url);
+  cfg.controlPlaneBaseUrl = trimSlash2(profile.control_plane_base_url);
+  cfg.approvalBaseUrl = trimSlash2(profile.approval_base_url);
+  if (profile.oidc_client_id) cfg.oidcClientId = profile.oidc_client_id;
+  cfg.activeProfileId = profile.id;
+  return cfg;
+}
+function inferProfileId(cfg) {
+  const api = trimSlash2(cfg.apiBaseUrl);
+  const oidc = trimSlash2(cfg.oidcAuthority);
+  for (const p of BUILTIN_PROFILES) {
+    if (trimSlash2(p.api_base_url) === api && trimSlash2(p.oidc_authority) === oidc) return p.id;
+  }
+  return cfg.activeProfileId || "custom-env";
+}
+async function applyActiveProfile(cfg, store) {
+  const active = await store.getActive();
+  if (!active?.profile_id) {
+    cfg.activeProfileId = inferProfileId(cfg);
+    return null;
+  }
+  const profile = await store.get(active.profile_id);
+  if (!profile) {
+    cfg.activeProfileId = inferProfileId(cfg);
+    return null;
+  }
+  applyProfileToConfig(cfg, profile);
+  return profile;
 }
 
 // src/tools/helpers.ts
@@ -21959,11 +22193,11 @@ function ok(summary, data) {
     structuredContent: data ?? { ok: true }
   };
 }
-function fail(message) {
+function fail(message, data) {
   return {
     content: [{ type: "text", text: message }],
     isError: true,
-    structuredContent: { error: message }
+    structuredContent: { error: message, ...data ?? {} }
   };
 }
 
@@ -21978,6 +22212,581 @@ function mergeSkillIds(existing, add) {
     out.push(trimmed);
   }
   return out;
+}
+
+// src/platform/tenants.ts
+function asArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === "object") {
+    const obj = value;
+    if (Array.isArray(obj.items)) return obj.items;
+  }
+  return [];
+}
+function parseTenantMemberships(raw) {
+  return asArray(raw).map((row) => {
+    const o = row && typeof row === "object" ? row : {};
+    const tenant_id = String(o.tenant_id ?? o.id ?? "").trim();
+    const tenant_name = String(o.tenant_name ?? o.name ?? tenant_id).trim();
+    return {
+      tenant_id,
+      tenant_name,
+      role: typeof o.role === "string" ? o.role : void 0,
+      status: typeof o.status === "string" ? o.status : void 0,
+      active: typeof o.active === "boolean" ? o.active : void 0
+    };
+  }).filter((t) => t.tenant_id);
+}
+function slugify(name) {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+function normalizeTenants(memberships, opts = {}) {
+  const selected = (opts.selectedTenantId || "").trim().toLowerCase();
+  const last = (opts.lastTenantId || "").trim().toLowerCase();
+  return memberships.map((m) => {
+    const id = m.tenant_id;
+    const name = m.tenant_name || id;
+    return {
+      id,
+      name,
+      slug: slugify(name) || id.toLowerCase(),
+      role: m.role,
+      status: m.status,
+      active: m.active,
+      is_last: id.toLowerCase() === last,
+      is_selected: id.toLowerCase() === selected
+    };
+  });
+}
+function resolveTenant(memberships, query) {
+  const q = query.trim();
+  if (!q) return { error: "tenant query is empty" };
+  const ql = q.toLowerCase();
+  const byId = memberships.find((m) => m.tenant_id.toLowerCase() === ql);
+  if (byId) return { tenant: byId };
+  const byName = memberships.filter((m) => m.tenant_name.toLowerCase() === ql);
+  if (byName.length === 1) return { tenant: byName[0] };
+  if (byName.length > 1) return { error: `ambiguous tenant name: ${q}`, candidates: byName };
+  const bySlug = memberships.filter((m) => slugify(m.tenant_name) === ql);
+  if (bySlug.length === 1) return { tenant: bySlug[0] };
+  if (bySlug.length > 1) return { error: `ambiguous tenant slug: ${q}`, candidates: bySlug };
+  const partial2 = memberships.filter(
+    (m) => m.tenant_name.toLowerCase().includes(ql) || m.tenant_id.toLowerCase().includes(ql) || slugify(m.tenant_name).includes(ql)
+  );
+  if (partial2.length === 1) return { tenant: partial2[0] };
+  if (partial2.length > 1) return { error: `ambiguous tenant query: ${q}`, candidates: partial2 };
+  return { error: `tenant not found: ${q}` };
+}
+function parseLastTenantId(raw) {
+  if (!raw || typeof raw !== "object") return "";
+  const o = raw;
+  return String(o.last_tenant_id ?? o.tenant_id ?? "").trim();
+}
+
+// src/tools/registerAuth.ts
+async function probeOidc(authority) {
+  const url = `${authority.replace(/\/+$/, "")}/.well-known/openid-configuration`;
+  const res = await fetch(url);
+  const text = await res.text();
+  if (!res.ok) throw new Error(`OIDC discovery failed (${res.status}): ${text.slice(0, 200)}`);
+  const doc = JSON.parse(text);
+  const issuer = typeof doc.issuer === "string" ? doc.issuer.replace(/\/+$/, "") : "";
+  const expected = authority.replace(/\/+$/, "");
+  return {
+    discovery_url: url,
+    issuer,
+    issuer_matches_authority: issuer.toLowerCase() === expected.toLowerCase(),
+    authorization_endpoint: doc.authorization_endpoint,
+    token_endpoint: doc.token_endpoint
+  };
+}
+async function loadMemberships(ctx) {
+  const raw = await ctx.api.apiJSON("GET", "/api/users/me/tenants");
+  return parseTenantMemberships(raw);
+}
+async function loadLastTenantId(ctx) {
+  try {
+    const view = await ctx.api.apiJSON("GET", "/api/users/me/last-tenant");
+    return parseLastTenantId(view);
+  } catch {
+    return "";
+  }
+}
+async function activateTenant(ctx, tenantId, tenantName) {
+  const sess = await ctx.auth.setTenant(tenantId, tenantName);
+  const activated = await ctx.api.apiJSON("POST", "/api/users/me/active-tenant", {
+    tenant_id: tenantId
+  });
+  return { sess, activated };
+}
+async function resolveAndSetTenant(ctx, query) {
+  const memberships = await loadMemberships(ctx);
+  const resolved = resolveTenant(memberships, query);
+  if ("error" in resolved) {
+    return { ok: false, ...resolved, memberships };
+  }
+  const { sess, activated } = await activateTenant(
+    ctx,
+    resolved.tenant.tenant_id,
+    resolved.tenant.tenant_name
+  );
+  return {
+    ok: true,
+    tenant: resolved.tenant,
+    session: sess,
+    activated,
+    memberships
+  };
+}
+async function autoSelectTenant(ctx) {
+  const memberships = await loadMemberships(ctx);
+  const lastId = await loadLastTenantId(ctx);
+  const defaultId = (ctx.cfg.defaultTenantId || "").trim();
+  const selected = (await ctx.auth.session())?.tenant_id?.trim() || "";
+  let pick2 = "";
+  let reason = "";
+  if (selected && memberships.some((m) => m.tenant_id === selected)) {
+    pick2 = selected;
+    reason = "session";
+  } else if (defaultId && memberships.some((m) => m.tenant_id === defaultId)) {
+    pick2 = defaultId;
+    reason = "default";
+  } else if (lastId && memberships.some((m) => m.tenant_id === lastId)) {
+    pick2 = lastId;
+    reason = "last_tenant";
+  } else if (memberships.length === 1) {
+    pick2 = memberships[0].tenant_id;
+    reason = "single_membership";
+  }
+  if (!pick2) {
+    return {
+      selected: false,
+      needs_tenant_selection: true,
+      tenants: normalizeTenants(memberships, { lastTenantId: lastId, selectedTenantId: selected }),
+      last_tenant_id: lastId
+    };
+  }
+  const member = memberships.find((m) => m.tenant_id === pick2);
+  const { sess, activated } = await activateTenant(ctx, member.tenant_id, member.tenant_name);
+  return {
+    selected: true,
+    needs_tenant_selection: false,
+    reason,
+    tenant_id: member.tenant_id,
+    tenant_name: member.tenant_name,
+    tenants: normalizeTenants(memberships, {
+      lastTenantId: lastId,
+      selectedTenantId: member.tenant_id
+    }),
+    session: sess,
+    activated
+  };
+}
+function errPayload(e) {
+  if (e instanceof ReauthRequiredError) {
+    return fail(e.message, { code: e.code, reauth_required: true });
+  }
+  if (e instanceof IssuerMismatchError) {
+    return fail(e.message, {
+      code: e.code,
+      reauth_required: true,
+      session_authority: e.sessionAuthority,
+      config_authority: e.configAuthority
+    });
+  }
+  return fail(String(e));
+}
+function registerAuthTools(server, ctx) {
+  server.registerTool("yaaif_platform_list", {
+    description: "List builtin and custom YAAIF platform profiles (hosted, local-hybrid, local, \u2026).",
+    inputSchema: {}
+  }, async () => {
+    const active = await ctx.profiles.getActive();
+    const profiles = await ctx.profiles.listAll();
+    return ok("Listed platform profiles.", {
+      active_profile_id: active?.profile_id || ctx.cfg.activeProfileId || inferProfileId(ctx.cfg),
+      inferred_profile_id: inferProfileId(ctx.cfg),
+      profiles,
+      current: {
+        oidc_authority: ctx.cfg.oidcAuthority,
+        api_base: ctx.cfg.apiBaseUrl,
+        agent_base: ctx.cfg.agentBaseUrl,
+        control_plane_base: ctx.cfg.controlPlaneBaseUrl,
+        approval_base: ctx.cfg.approvalBaseUrl
+      }
+    });
+  });
+  server.registerTool("yaaif_platform_use", {
+    description: "Switch active platform profile (hosted | local-hybrid | local | custom id). Clears session if OIDC issuer changes.",
+    inputSchema: {
+      profile_id: external_exports.string(),
+      clear_session_on_issuer_change: external_exports.boolean().optional()
+    }
+  }, async ({ profile_id, clear_session_on_issuer_change }) => {
+    try {
+      const profile = await ctx.profiles.get(profile_id);
+      if (!profile) return fail(`unknown profile: ${profile_id}`);
+      const prevIssuer = ctx.cfg.oidcAuthority;
+      await ctx.profiles.setActive(profile.id);
+      applyProfileToConfig(ctx.cfg, profile);
+      const issuerChanged = prevIssuer.replace(/\/+$/, "").toLowerCase() !== profile.oidc_authority.replace(/\/+$/, "").toLowerCase();
+      let session_cleared = false;
+      if (issuerChanged && (clear_session_on_issuer_change ?? true)) {
+        await ctx.auth.logout({ endSession: false });
+        session_cleared = true;
+      }
+      return ok(`Active platform profile set to ${profile.id}.`, {
+        profile,
+        session_cleared,
+        issuer_changed: issuerChanged,
+        note: session_cleared ? "Session cleared due to OIDC issuer change \u2014 call yaaif_login or yaaif_ensure_session." : void 0
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_platform_save", {
+    description: "Save or update a custom platform profile under ~/.yaaif/cursor/profiles.json.",
+    inputSchema: {
+      id: external_exports.string(),
+      label: external_exports.string().optional(),
+      description: external_exports.string().optional(),
+      oidc_authority: external_exports.string(),
+      api_base_url: external_exports.string(),
+      agent_base_url: external_exports.string().optional(),
+      control_plane_base_url: external_exports.string().optional(),
+      approval_base_url: external_exports.string().optional(),
+      oidc_client_id: external_exports.string().optional(),
+      activate: external_exports.boolean().optional()
+    }
+  }, async (args) => {
+    try {
+      const profile = await ctx.profiles.upsertCustom({
+        id: args.id,
+        label: args.label || args.id,
+        description: args.description,
+        oidc_authority: args.oidc_authority,
+        api_base_url: args.api_base_url,
+        agent_base_url: args.agent_base_url || "",
+        control_plane_base_url: args.control_plane_base_url || "",
+        approval_base_url: args.approval_base_url || "",
+        oidc_client_id: args.oidc_client_id
+      });
+      if (args.activate) {
+        await ctx.profiles.setActive(profile.id);
+        applyProfileToConfig(ctx.cfg, profile);
+      }
+      return ok(`Saved custom profile ${profile.id}.`, { profile, activated: Boolean(args.activate) });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_configure_check", {
+    description: "Validate platform profile, OIDC discovery, auth session, and service reachability.",
+    inputSchema: {}
+  }, async () => {
+    const sess = await ctx.auth.session();
+    const out = {
+      profile_id: ctx.cfg.activeProfileId || inferProfileId(ctx.cfg),
+      oidc_authority: ctx.cfg.oidcAuthority,
+      api_base: ctx.cfg.apiBaseUrl,
+      agent_base: ctx.cfg.agentBaseUrl,
+      control_plane_base: ctx.cfg.controlPlaneBaseUrl,
+      approval_base: ctx.cfg.approvalBaseUrl,
+      client_id: ctx.cfg.oidcClientId,
+      authenticated: Boolean(sess?.tokens.access_token),
+      tenant_id: sess?.tenant_id || ctx.cfg.defaultTenantId || "",
+      tenant_name: sess?.tenant_name || "",
+      session_profile_id: sess?.profile_id || "",
+      session_oidc_authority: sess?.oidc_authority || ""
+    };
+    try {
+      out.oidc = await probeOidc(ctx.cfg.oidcAuthority);
+    } catch (e) {
+      out.oidc_error = String(e);
+    }
+    try {
+      ctx.auth.assertIssuerMatch(sess);
+      out.issuer_match = true;
+    } catch (e) {
+      out.issuer_match = false;
+      out.issuer_error = String(e);
+    }
+    const probe = async (key, url) => {
+      try {
+        out[key] = (await fetch(url)).status;
+      } catch (e) {
+        out[`${key}_error`] = String(e);
+      }
+    };
+    await Promise.all([
+      probe("api_health", `${ctx.cfg.apiBaseUrl}/health`),
+      probe("agent_health", `${ctx.cfg.agentBaseUrl}/health`),
+      probe("control_plane_health", `${ctx.cfg.controlPlaneBaseUrl}/health`),
+      probe("approval_health", `${ctx.cfg.approvalBaseUrl}/health`)
+    ]);
+    if (sess?.tokens.access_token && out.issuer_match !== false) {
+      try {
+        out.rbac_me = await ctx.api.apiJSON("GET", "/api/rbac/me");
+      } catch (e) {
+        out.rbac_error = String(e);
+      }
+    }
+    return ok("Configuration check complete.", out);
+  });
+  server.registerTool("yaaif_login", {
+    description: "Open browser PKCE login against the active platform OIDC authority and persist tokens.",
+    inputSchema: {}
+  }, async () => {
+    try {
+      const { session, auth_url } = await ctx.auth.login();
+      let tenant;
+      try {
+        tenant = await autoSelectTenant(ctx);
+      } catch (e) {
+        tenant = { auto_select_error: String(e) };
+      }
+      return ok("Logged in to YAAIF.", {
+        email: session.email,
+        name: session.name,
+        subject: session.subject,
+        tenant_id: (await ctx.auth.session())?.tenant_id || session.tenant_id,
+        tenant_name: (await ctx.auth.session())?.tenant_name,
+        profile_id: session.profile_id,
+        oidc_authority: session.oidc_authority,
+        expires: session.tokens.expiry,
+        auth_url,
+        tenant_selection: tenant
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_logout", {
+    description: "Clear the local YAAIF Cursor session. Optionally open Keycloak end_session.",
+    inputSchema: { end_session: external_exports.boolean().optional() }
+  }, async ({ end_session }) => {
+    const result = await ctx.auth.logout({ endSession: Boolean(end_session) });
+    return ok("Logged out.", result);
+  });
+  server.registerTool("yaaif_whoami", {
+    description: "Return current profile, auth session, tenant name/id, and RBAC identity.",
+    inputSchema: {}
+  }, async () => {
+    const sess = await ctx.auth.session();
+    if (!sess?.tokens.access_token) {
+      return ok("Not authenticated.", {
+        authenticated: false,
+        profile_id: ctx.cfg.activeProfileId || inferProfileId(ctx.cfg),
+        oidc_authority: ctx.cfg.oidcAuthority,
+        api_base: ctx.cfg.apiBaseUrl
+      });
+    }
+    try {
+      ctx.auth.assertIssuerMatch(sess);
+    } catch (e) {
+      return errPayload(e);
+    }
+    let me;
+    let tenantsNorm;
+    try {
+      me = await ctx.api.apiJSON("GET", "/api/rbac/me");
+    } catch {
+    }
+    try {
+      const memberships = await loadMemberships(ctx);
+      const lastId = await loadLastTenantId(ctx);
+      tenantsNorm = normalizeTenants(memberships, {
+        selectedTenantId: sess.tenant_id,
+        lastTenantId: lastId
+      });
+    } catch {
+    }
+    const selected = Array.isArray(tenantsNorm) ? tenantsNorm.find((t) => t.is_selected) : void 0;
+    return ok("Authenticated YAAIF session.", {
+      authenticated: true,
+      email: sess.email,
+      name: sess.name,
+      subject: sess.subject,
+      tenant_id: sess.tenant_id || ctx.cfg.defaultTenantId || "",
+      tenant_name: sess.tenant_name || selected?.name || "",
+      profile_id: ctx.cfg.activeProfileId || sess.profile_id || inferProfileId(ctx.cfg),
+      session_profile_id: sess.profile_id,
+      oidc_authority: ctx.cfg.oidcAuthority,
+      session_oidc_authority: sess.oidc_authority,
+      expires: sess.tokens.expiry,
+      rbac_me: me,
+      tenants: tenantsNorm,
+      api_base: ctx.cfg.apiBaseUrl,
+      agent_base: ctx.cfg.agentBaseUrl,
+      control_plane_base: ctx.cfg.controlPlaneBaseUrl,
+      approval_base: ctx.cfg.approvalBaseUrl
+    });
+  });
+  server.registerTool("yaaif_list_tenants", {
+    description: "List tenants for the signed-in user (normalized: id, name, slug, is_last, is_selected).",
+    inputSchema: {}
+  }, async () => {
+    try {
+      const memberships = await loadMemberships(ctx);
+      const lastId = await loadLastTenantId(ctx);
+      const selected = (await ctx.auth.session())?.tenant_id;
+      return ok("Listed tenants.", {
+        tenants: normalizeTenants(memberships, { lastTenantId: lastId, selectedTenantId: selected }),
+        last_tenant_id: lastId,
+        selected_tenant_id: selected || ""
+      });
+    } catch (e) {
+      return errPayload(e);
+    }
+  });
+  server.registerTool("yaaif_set_tenant", {
+    description: "Set active tenant by UUID, name, or slug; activates on the server.",
+    inputSchema: {
+      tenant: external_exports.string().optional(),
+      tenant_id: external_exports.string().optional()
+    }
+  }, async ({ tenant, tenant_id }) => {
+    const query = (tenant || tenant_id || "").trim();
+    if (!query) return fail("tenant or tenant_id is required");
+    try {
+      const result = await resolveAndSetTenant(ctx, query);
+      if (!result.ok) {
+        return fail(result.error, {
+          candidates: result.candidates,
+          tenants: normalizeTenants(result.memberships)
+        });
+      }
+      return ok(`Active tenant set to ${result.tenant.tenant_name} (${result.tenant.tenant_id}).`, {
+        tenant_id: result.tenant.tenant_id,
+        tenant_name: result.tenant.tenant_name,
+        email: result.session.email,
+        activated: result.activated,
+        tenants: normalizeTenants(result.memberships, {
+          selectedTenantId: result.tenant.tenant_id
+        })
+      });
+    } catch (e) {
+      return errPayload(e);
+    }
+  });
+  server.registerTool("yaaif_ensure_session", {
+    description: "One-shot: validate platform/OIDC, refresh or login, auto-select tenant (last/single/default), return ready state.",
+    inputSchema: {
+      login_if_needed: external_exports.boolean().optional(),
+      tenant: external_exports.string().optional(),
+      profile_id: external_exports.string().optional()
+    }
+  }, async ({ login_if_needed, tenant, profile_id }) => {
+    try {
+      if (profile_id) {
+        const profile = await ctx.profiles.get(profile_id);
+        if (!profile) return fail(`unknown profile: ${profile_id}`);
+        await ctx.profiles.setActive(profile.id);
+        applyProfileToConfig(ctx.cfg, profile);
+      }
+      let oidc;
+      try {
+        oidc = await probeOidc(ctx.cfg.oidcAuthority);
+      } catch (e) {
+        return fail(`OIDC discovery failed for ${ctx.cfg.oidcAuthority}: ${String(e)}`, {
+          profile_id: ctx.cfg.activeProfileId,
+          oidc_authority: ctx.cfg.oidcAuthority
+        });
+      }
+      let sess = await ctx.auth.session();
+      try {
+        ctx.auth.assertIssuerMatch(sess);
+      } catch (e) {
+        if (login_if_needed) {
+          await ctx.auth.logout({ endSession: false });
+          sess = null;
+        } else {
+          return errPayload(e);
+        }
+      }
+      let logged_in = false;
+      let auth_url;
+      if (!sess?.tokens.access_token) {
+        if (!login_if_needed) {
+          return ok("Session not ready \u2014 login required.", {
+            ready: false,
+            reauth_required: true,
+            profile_id: ctx.cfg.activeProfileId || inferProfileId(ctx.cfg),
+            oidc
+          });
+        }
+        const login = await ctx.auth.login();
+        logged_in = true;
+        auth_url = login.auth_url;
+        sess = login.session;
+      } else {
+        try {
+          await ctx.auth.accessToken();
+        } catch (e) {
+          if (login_if_needed) {
+            const login = await ctx.auth.login();
+            logged_in = true;
+            auth_url = login.auth_url;
+            sess = login.session;
+          } else {
+            return errPayload(e);
+          }
+        }
+      }
+      if (tenant) {
+        const set = await resolveAndSetTenant(ctx, tenant);
+        if (!set.ok) {
+          return fail(set.error, { ready: false, candidates: set.candidates, oidc });
+        }
+        return ok("Session ready.", {
+          ready: true,
+          logged_in,
+          auth_url,
+          profile_id: ctx.cfg.activeProfileId || inferProfileId(ctx.cfg),
+          oidc_authority: ctx.cfg.oidcAuthority,
+          api_base: ctx.cfg.apiBaseUrl,
+          email: set.session.email,
+          tenant_id: set.tenant.tenant_id,
+          tenant_name: set.tenant.tenant_name,
+          tenant_reason: "explicit",
+          tenants: normalizeTenants(set.memberships, { selectedTenantId: set.tenant.tenant_id }),
+          oidc
+        });
+      }
+      const auto = await autoSelectTenant(ctx);
+      if (!auto.selected) {
+        return ok("Authenticated but tenant selection required.", {
+          ready: false,
+          needs_tenant_selection: true,
+          logged_in,
+          auth_url,
+          profile_id: ctx.cfg.activeProfileId || inferProfileId(ctx.cfg),
+          oidc_authority: ctx.cfg.oidcAuthority,
+          tenants: auto.tenants,
+          last_tenant_id: auto.last_tenant_id,
+          oidc,
+          hint: "Call yaaif_set_tenant with a tenant name, slug, or uuid."
+        });
+      }
+      return ok("Session ready.", {
+        ready: true,
+        logged_in,
+        auth_url,
+        profile_id: ctx.cfg.activeProfileId || inferProfileId(ctx.cfg),
+        oidc_authority: ctx.cfg.oidcAuthority,
+        api_base: ctx.cfg.apiBaseUrl,
+        email: auto.session?.email,
+        tenant_id: auto.tenant_id,
+        tenant_name: auto.tenant_name,
+        tenant_reason: auto.reason,
+        tenants: auto.tenants,
+        oidc
+      });
+    } catch (e) {
+      return errPayload(e);
+    }
+  });
 }
 
 // src/tools/registerDesktop.ts
@@ -22187,7 +22996,7 @@ function registerApprovalTools(server, ctx) {
 }
 
 // src/lib/planCatalog.ts
-function asArray(value) {
+function asArray2(value) {
   if (Array.isArray(value)) return value;
   if (value && typeof value === "object") {
     const obj = value;
@@ -22211,11 +23020,11 @@ function idOf(row) {
 }
 function extractCatalogBuckets(raw) {
   return {
-    agents: asArray(raw.agents).map((r) => ({ id: idOf(r), name: nameOf(r) })),
-    skills: asArray(raw.skills).map((r) => ({ id: idOf(r) || nameOf(r), name: nameOf(r) })),
-    workflows: asArray(raw.ambient_workflows).map((r) => ({ id: idOf(r), name: nameOf(r) })),
-    mcp_tools: asArray(raw.mcp_tools).map((r) => ({ id: idOf(r), name: nameOf(r) })),
-    ambient_agents: asArray(raw.ambient_agents).map((r) => ({ id: idOf(r), name: nameOf(r) }))
+    agents: asArray2(raw.agents).map((r) => ({ id: idOf(r), name: nameOf(r) })),
+    skills: asArray2(raw.skills).map((r) => ({ id: idOf(r) || nameOf(r), name: nameOf(r) })),
+    workflows: asArray2(raw.ambient_workflows).map((r) => ({ id: idOf(r), name: nameOf(r) })),
+    mcp_tools: asArray2(raw.mcp_tools).map((r) => ({ id: idOf(r), name: nameOf(r) })),
+    ambient_agents: asArray2(raw.ambient_agents).map((r) => ({ id: idOf(r), name: nameOf(r) }))
   };
 }
 function hasName(rows, want) {
@@ -22359,134 +23168,16 @@ function registerPlanTools(server, ctx) {
 // src/tools/register.ts
 import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join as join3 } from "node:path";
+import { join as join4 } from "node:path";
 import { execFileSync as execFileSync2 } from "node:child_process";
 function registerAllTools(server, ctx) {
-  registerAuth(server, ctx);
+  registerAuthTools(server, ctx);
   registerSkills(server, ctx);
   registerAmbient(server, ctx);
   registerMcp(server, ctx);
   registerDesktopTools(server, ctx);
   registerApprovalTools(server, ctx);
   registerPlanTools(server, ctx);
-}
-function registerAuth(server, ctx) {
-  server.registerTool("yaaif_configure_check", {
-    description: "Validate plugin env URLs, auth session, and API/agent reachability.",
-    inputSchema: {}
-  }, async () => {
-    const sess = await ctx.auth.session();
-    const out = {
-      oidc_authority: ctx.cfg.oidcAuthority,
-      api_base: ctx.cfg.apiBaseUrl,
-      agent_base: ctx.cfg.agentBaseUrl,
-      control_plane_base: ctx.cfg.controlPlaneBaseUrl,
-      approval_base: ctx.cfg.approvalBaseUrl,
-      client_id: ctx.cfg.oidcClientId,
-      authenticated: Boolean(sess?.tokens.access_token),
-      tenant_id: sess?.tenant_id || ctx.cfg.defaultTenantId || ""
-    };
-    const probe = async (key, url) => {
-      try {
-        out[key] = (await fetch(url)).status;
-      } catch (e) {
-        out[`${key}_error`] = String(e);
-      }
-    };
-    await Promise.all([
-      probe("api_health", `${ctx.cfg.apiBaseUrl}/health`),
-      probe("agent_health", `${ctx.cfg.agentBaseUrl}/health`),
-      probe("control_plane_health", `${ctx.cfg.controlPlaneBaseUrl}/health`),
-      probe("approval_health", `${ctx.cfg.approvalBaseUrl}/health`)
-    ]);
-    if (sess?.tokens.access_token) {
-      try {
-        out.rbac_me = await ctx.api.apiJSON("GET", "/api/rbac/me");
-      } catch (e) {
-        out.rbac_error = String(e);
-      }
-    }
-    return ok("Configuration check complete.", out);
-  });
-  server.registerTool("yaaif_login", {
-    description: "Open browser PKCE login against YAAIF Keycloak and persist tokens.",
-    inputSchema: {}
-  }, async () => {
-    try {
-      const sess = await ctx.auth.login();
-      return ok("Logged in to YAAIF.", {
-        email: sess.email,
-        name: sess.name,
-        subject: sess.subject,
-        tenant_id: sess.tenant_id,
-        expires: sess.tokens.expiry
-      });
-    } catch (e) {
-      return fail(String(e));
-    }
-  });
-  server.registerTool("yaaif_logout", {
-    description: "Clear the local YAAIF Cursor session.",
-    inputSchema: {}
-  }, async () => {
-    await ctx.auth.logout();
-    return ok("Logged out.", { logged_out: true });
-  });
-  server.registerTool("yaaif_whoami", {
-    description: "Return current auth session, RBAC identity, and active tenant.",
-    inputSchema: {}
-  }, async () => {
-    const sess = await ctx.auth.session();
-    if (!sess?.tokens.access_token) return ok("Not authenticated.", { authenticated: false });
-    let me;
-    let tenants;
-    try {
-      me = await ctx.api.apiJSON("GET", "/api/rbac/me");
-    } catch {
-    }
-    try {
-      tenants = await ctx.api.apiJSON("GET", "/api/users/me/tenants");
-    } catch {
-    }
-    return ok("Authenticated YAAIF session.", {
-      authenticated: true,
-      email: sess.email,
-      name: sess.name,
-      subject: sess.subject,
-      tenant_id: sess.tenant_id || ctx.cfg.defaultTenantId || "",
-      expires: sess.tokens.expiry,
-      rbac_me: me,
-      tenants,
-      api_base: ctx.cfg.apiBaseUrl,
-      agent_base: ctx.cfg.agentBaseUrl
-    });
-  });
-  server.registerTool("yaaif_list_tenants", {
-    description: "List tenants available to the signed-in user.",
-    inputSchema: {}
-  }, async () => {
-    try {
-      const tenants = await ctx.api.apiJSON("GET", "/api/users/me/tenants");
-      return ok("Listed tenants.", { tenants });
-    } catch (e) {
-      return fail(String(e));
-    }
-  });
-  server.registerTool("yaaif_set_tenant", {
-    description: "Set the active tenant id for subsequent YAAIF API calls.",
-    inputSchema: { tenant_id: external_exports.string() }
-  }, async ({ tenant_id }) => {
-    try {
-      const sess = await ctx.auth.setTenant(tenant_id);
-      try {
-        await ctx.api.apiJSON("POST", "/api/users/me/active-tenant", { tenant_id });
-      } catch {
-      }
-      return ok(`Active tenant set to ${tenant_id}.`, { tenant_id: sess.tenant_id, email: sess.email });
-    } catch (e) {
-      return fail(String(e));
-    }
-  });
 }
 function registerSkills(server, ctx) {
   server.registerTool("yaaif_skill_list", {
@@ -23015,19 +23706,19 @@ function registerMcp(server, ctx) {
       }
       const lang = args.language || "go";
       const workspace = args.workspace_root || process.cwd();
-      const parent = args.target_dir ? args.target_dir.startsWith("/") ? args.target_dir : join3(workspace, args.target_dir) : join3(workspace, "mcp-servers");
-      const dest = join3(parent, `${name}-mcp-service`);
+      const parent = args.target_dir ? args.target_dir.startsWith("/") ? args.target_dir : join4(workspace, args.target_dir) : join4(workspace, "mcp-servers");
+      const dest = join4(parent, `${name}-mcp-service`);
       if (existsSync(dest)) return fail(`destination already exists: ${dest}`);
       const repo = lang === "python" ? "https://github.com/yaaif/mcp-server-templates-py.git" : "https://github.com/yaaif/mcp-server-templates-go.git";
-      const tmp = mkdtempSync(join3(tmpdir(), "yaaif-mcp-scaffold-"));
+      const tmp = mkdtempSync(join4(tmpdir(), "yaaif-mcp-scaffold-"));
       try {
         execFileSync2("git", ["clone", "--depth", "1", repo, tmp], { stdio: "inherit" });
         cpSync(tmp, dest, {
           recursive: true,
-          filter: (src) => !src.includes(`${join3(tmp, ".git")}`) && !src.endsWith("/.git")
+          filter: (src) => !src.includes(`${join4(tmp, ".git")}`) && !src.endsWith("/.git")
         });
-        rmSync(join3(dest, ".git"), { recursive: true, force: true });
-        const renameScript = join3(dest, "scripts", "rename-service.sh");
+        rmSync(join4(dest, ".git"), { recursive: true, force: true });
+        const renameScript = join4(dest, "scripts", "rename-service.sh");
         if (existsSync(renameScript)) {
           try {
             execFileSync2("bash", [renameScript, name], { cwd: dest, stdio: "inherit" });
@@ -23296,13 +23987,21 @@ async function main() {
   const cfg = loadConfig();
   const store = new SessionStore(cfg.cursorHome);
   await store.ensureHome(cfg.cursorHome);
+  const profiles = new ProfileStore(cfg.cursorHome);
+  await profiles.ensureHome();
+  if (cfg.activeProfileId) {
+    const p = await profiles.get(cfg.activeProfileId);
+    if (p) applyProfileToConfig(cfg, p);
+  } else {
+    await applyActiveProfile(cfg, profiles);
+  }
   const auth = new AuthClient(cfg, store);
   const api = new ApiClient(cfg, auth);
   const server = new McpServer({
     name: "yaaif-cursor",
-    version: "0.2.0"
+    version: "0.5.0"
   });
-  registerAllTools(server, { cfg, auth, api });
+  registerAllTools(server, { cfg, auth, api, profiles });
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
