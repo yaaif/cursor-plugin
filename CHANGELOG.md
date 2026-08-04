@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0
+
+- Platform local tools bridge: `yaaif_local_tools_list` / `get` / `call` / catalog overview
+- `yaaif_dev_session_ensure` for files_* / session_state_* authoring
+- Convenience aliases: `yaaif_skill_validate_module`, `yaaif_skill_develop`, `yaaif_skill_guided_draft`, `yaaif_skill_mcp_tool_catalog`, `yaaif_files_list`, `yaaif_file_load_context`
+- New skill/command `yaaif-platform-tools` (+ local-tools reference)
+- `yaaif-create-skill` / plan / ambient prefer platform lifecycle locals
+- Doctor `local_tools` check; catalog overview includes local tools
+- Requires agent-service `/api/local-tools` endpoints
+
 ## 0.6.0
 
 - `yaaif_doctor` + `/yaaif-doctor` end-to-end connectivity checks

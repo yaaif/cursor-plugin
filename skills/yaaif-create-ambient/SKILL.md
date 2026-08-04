@@ -34,8 +34,11 @@ See [references/patterns.md](references/patterns.md). Default to **Linear**.
 2. If Linear+approval / HITL: `yaaif_approval_strategy_create` (`publish: true`) or reuse via `yaaif_approval_strategies_list`; set `approval_strategy_id` on approval nodes
 3. `yaaif_ambient_agent_create` (`mode: "active"`, async on)
 4. `yaaif_ambient_workflow_create` with `workflow_graph` + `trigger_rules`
-5. Optional chat skill via `yaaif-create-skill` including `list_ambient_workflows` + `trigger_ambient_workflow`
-6. `yaaif_ambient_test_trigger` → `yaaif_ambient_runs_list`
+5. Optional chat skill via `yaaif-create-skill` including exact local tools
+   `list_ambient_workflows` + `trigger_ambient_workflow` (confirm via
+   `yaaif_local_tools_list` family `ambient`)
+6. Optional smoke: `yaaif_local_tool_call` → `list_ambient_workflows`
+7. `yaaif_ambient_test_trigger` → `yaaif_ambient_runs_list`
 
 ## Hand-off
 

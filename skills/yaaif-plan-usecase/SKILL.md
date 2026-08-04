@@ -41,12 +41,17 @@ Task Progress:
 ### 1. Auth + catalog
 
 - Ensure auth via `yaaif-auth`
-- Call `yaaif_catalog_overview`
+- Call `yaaif_catalog_overview` (includes `local_tools` when reachable)
 - Use targeted list tools when needed: `yaaif_agent_list`, `yaaif_skill_list`,
   `yaaif_mcp_tools_list`, `yaaif_ambient_workflow_list`,
-  `yaaif_approval_strategies_list`, `yaaif_desktop_workers_list`
+  `yaaif_approval_strategies_list`, `yaaif_desktop_workers_list`,
+  `yaaif_local_tools_list` (exact platform tool names for skill frontmatter)
 - Prefer **reuse** of existing agents / skills / MCP tools / workflows when names
   or purposes clearly overlap
+- For chat→ambient skills, resolve real local names via
+  `list_ambient_workflows` / `trigger_ambient_workflow` (local tools), not invented aliases
+- For file-heavy use cases, include `files_list` / `file_load_context` (and note
+  `yaaif_dev_session_ensure` for Cursor authoring)
 
 ### 2. Capture intent
 

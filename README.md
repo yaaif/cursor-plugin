@@ -80,7 +80,7 @@ MCP bridge is TypeScript (`packages/mcp`), launched via:
 After npm publish:
 
 ```bash
-npx -y @yaaif/cursor-mcp@0.6.0
+npx -y @yaaif/cursor-mcp@0.7.0
 ```
 
 Requires **Node.js ≥ 20**. No Go toolchain.
@@ -92,7 +92,8 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 | `yaaif-auth` / `/yaaif-login` | Platform profile + login + tenant |
 | `yaaif-doctor` / `/yaaif-doctor` | Connectivity / TLS / auth diagnostics |
 | `yaaif-plan-usecase` / `/yaaif-plan` | Use-case plan → approve → create agents/skills/workflows |
-| `yaaif-create-skill` / `/yaaif-new-skill` | Author + load skill |
+| `yaaif-create-skill` / `/yaaif-new-skill` | Author + load skill (prefers platform local lifecycle tools) |
+| `yaaif-platform-tools` / `/yaaif-platform-tools` | Discover/call agent-service built-in local tools |
 | `yaaif-create-mcp` / `/yaaif-new-mcp` | Scaffold + deploy MCP |
 | `yaaif-create-ambient` / `/yaaif-new-workflow` | Ambient workflows |
 
@@ -100,8 +101,11 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 
 | Tool | Purpose |
 |------|--------|
-| `yaaif_catalog_overview` | Snapshot of agents, skills, MCPs, ambient |
-| `yaaif_doctor` | Profile + OIDC + health + session + catalog |
+| `yaaif_catalog_overview` | Snapshot of agents, skills, MCPs, ambient, local tools |
+| `yaaif_local_tools_list` / `yaaif_local_tool_get` / `yaaif_local_tool_call` | Agent-service built-in local tools (skill lifecycle, files, ambient, …) |
+| `yaaif_dev_session_ensure` | Cursor authoring session for `files_*` / state locals |
+| `yaaif_skill_validate_module` / `yaaif_skill_develop` / `yaaif_skill_guided_draft` | Convenience wrappers for skill lifecycle locals |
+| `yaaif_doctor` | Profile + OIDC + health + session + catalog + local tools |
 | `yaaif_plan_verify` / `yaaif_plan_dry_run` / `yaaif_plan_execution_*` | Plan verify / dry-run / resume |
 | `yaaif_platform_export` | Shell exports + Cursor variables JSON |
 | `yaaif_agent_list` / `yaaif_agent_get` / `yaaif_agent_create` / `yaaif_agent_update` | Agents |

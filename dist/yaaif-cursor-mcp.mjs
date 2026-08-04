@@ -21990,6 +21990,17 @@ var AuthClient = class {
     await this.store.save(sess);
     return sess;
   }
+  async patchSession(patch) {
+    const sess = await this.store.load();
+    if (!sess?.tokens.access_token) throw new ReauthRequiredError("not authenticated; call yaaif_login first");
+    this.assertIssuerMatch(sess);
+    if (patch.dev_session_id !== void 0) sess.dev_session_id = patch.dev_session_id;
+    if (patch.dev_agent_id !== void 0) sess.dev_agent_id = patch.dev_agent_id;
+    if (patch.tenant_id !== void 0) sess.tenant_id = patch.tenant_id;
+    if (patch.tenant_name !== void 0) sess.tenant_name = patch.tenant_name;
+    await this.store.save(sess);
+    return sess;
+  }
   async accessToken() {
     let sess = await this.store.load();
     if (!sess?.tokens.access_token) throw new ReauthRequiredError("not authenticated; call yaaif_login first");
@@ -23829,6 +23840,21 @@ function registerDoctorTools(server, ctx) {
         add("catalog_ping", false, String(e));
         void ctx.telemetry.increment("doctor_catalog_fail");
       }
+      try {
+        const localTools = await ctx.api.agentJSON(
+          "GET",
+          "/api/local-tools?family=skill"
+        );
+        add("local_tools", true, {
+          skill_count: localTools.count,
+          total: localTools.total,
+          family_counts: localTools.family_counts
+        });
+        void ctx.telemetry.increment("doctor_local_tools_ok");
+      } catch (e) {
+        add("local_tools", false, String(e));
+        void ctx.telemetry.increment("doctor_local_tools_fail");
+      }
     }
     const failed = checks.filter((c) => !c.ok);
     const summary = failed.length ? `Doctor found ${failed.length} issue(s): ${failed.map((f) => f.name).join(", ")}` : "Doctor checks passed.";
@@ -23850,6 +23876,201 @@ function registerDoctorTools(server, ctx) {
   });
 }
 
+// src/tools/registerLocalTools.ts
+var MUTATING_ACK_TOOLS = /* @__PURE__ */ new Set([
+  "skill_archive_or_delete",
+  "skill_repo_ops",
+  "skill_release_manager",
+  "ambient_approval_delete",
+  "session_state_delete"
+]);
+async function persistDevSession(ctx, result) {
+  await ctx.auth.patchSession({
+    dev_session_id: result.session_id,
+    dev_agent_id: result.agent_id
+  });
+}
+async function resolveDevSessionId(ctx, explicit) {
+  if (explicit?.trim()) return explicit.trim();
+  const sess = await ctx.auth.session();
+  return sess?.dev_session_id?.trim() || void 0;
+}
+function registerLocalTools(server, ctx) {
+  server.registerTool("yaaif_local_tools_list", {
+    description: "List agent-service built-in local tools (skill lifecycle, files, ambient trigger, state, approvals). Use when authoring SKILL.md tools: lists.",
+    inputSchema: {
+      family: external_exports.enum(["skill", "files", "ambient", "approval", "state", "memory", "context_store", "client", "other"]).optional(),
+      q: external_exports.string().optional()
+    }
+  }, async ({ family, q }) => {
+    const params = new URLSearchParams();
+    if (family) params.set("family", family);
+    if (q) params.set("q", q);
+    const path2 = `/api/local-tools${params.size ? `?${params}` : ""}`;
+    try {
+      const result = await ctx.api.agentJSON("GET", path2);
+      return ok(`Listed ${result.count ?? 0} local tools.`, { result });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_local_tool_get", {
+    description: "Get one local tool definition (name, description, input_schema, family).",
+    inputSchema: { name: external_exports.string() }
+  }, async ({ name }) => {
+    try {
+      const tool = await ctx.api.agentJSON("GET", `/api/local-tools/${encodeURIComponent(name)}`);
+      return ok(`Fetched local tool ${name}.`, { tool });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_local_tools_catalog_overview", {
+    description: "Counts of local tools by family plus recommended skill-authoring tools.",
+    inputSchema: {}
+  }, async () => {
+    try {
+      const result = await ctx.api.agentJSON("GET", "/api/local-tools");
+      const items = Array.isArray(result.items) ? result.items : [];
+      const recommended = items.filter((i) => i.recommended_for_skill_authoring === true).map((i) => i.name);
+      return ok("Local tools catalog overview.", {
+        total: result.total ?? items.length,
+        family_counts: result.family_counts ?? {},
+        recommended_for_skill_authoring: recommended
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_local_tool_call", {
+    description: "Invoke an agent-service built-in local tool (not external MCP). Prefer for skill_validate_module, skill_develop, files_list, list_ambient_workflows, etc. High-impact tools require allow_mutating=true.",
+    inputSchema: {
+      name: external_exports.string(),
+      arguments: external_exports.record(external_exports.unknown()).optional(),
+      session_id: external_exports.string().optional(),
+      agent_id: external_exports.string().optional(),
+      branch: external_exports.string().optional(),
+      allow_mutating: external_exports.boolean().optional(),
+      resolve_workspace: external_exports.boolean().optional()
+    }
+  }, async ({ name, arguments: args, session_id, agent_id, branch, allow_mutating, resolve_workspace }) => {
+    const toolName = name.trim();
+    if (!toolName) return fail("name is required");
+    const needsAck = MUTATING_ACK_TOOLS.has(toolName.toLowerCase());
+    if (needsAck && !allow_mutating) {
+      return fail(`tool requires allow_mutating=true: ${toolName}`);
+    }
+    const sessionId = await resolveDevSessionId(ctx, session_id);
+    try {
+      const result = await ctx.api.agentJSON("POST", `/api/local-tools/${encodeURIComponent(toolName)}/call`, {
+        arguments: args ?? {},
+        session_id: sessionId,
+        agent_id,
+        branch,
+        allow_mutating: Boolean(allow_mutating),
+        resolve_workspace
+      });
+      const isError = Boolean(result?.is_error);
+      if (isError) {
+        return fail(`Local tool ${toolName} returned an error.`, { result });
+      }
+      return ok(`Called local tool ${toolName}.`, { result });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_dev_session_ensure", {
+    description: "Create or reuse a Cursor authoring chat session for files_* / session_state_* local tools. Persists session_id in ~/.yaaif/cursor/session.json.",
+    inputSchema: {
+      session_id: external_exports.string().optional(),
+      agent_id: external_exports.string().optional(),
+      force_new: external_exports.boolean().optional()
+    }
+  }, async ({ session_id, agent_id, force_new }) => {
+    try {
+      if (!force_new) {
+        const existing = await resolveDevSessionId(ctx, session_id);
+        if (existing) {
+          const sess = await ctx.auth.session();
+          return ok("Reusing Cursor dev session.", {
+            session_id: existing,
+            agent_id: agent_id || sess?.dev_agent_id || "",
+            reused: true
+          });
+        }
+      }
+      const result = await ctx.api.agentJSON("POST", "/api/local-tools/dev-session", {
+        session_id: session_id || void 0,
+        agent_id: agent_id || void 0
+      });
+      await persistDevSession(ctx, result);
+      return ok("Created Cursor dev session.", { ...result, reused: false });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  const alias = (tool, localName, description, extraSchema = {}) => {
+    server.registerTool(tool, {
+      description,
+      inputSchema: {
+        arguments: external_exports.record(external_exports.unknown()).optional(),
+        session_id: external_exports.string().optional(),
+        agent_id: external_exports.string().optional(),
+        ...extraSchema
+      }
+    }, async (input) => {
+      const sessionId = await resolveDevSessionId(ctx, input.session_id);
+      try {
+        const result = await ctx.api.agentJSON(
+          "POST",
+          `/api/local-tools/${encodeURIComponent(localName)}/call`,
+          {
+            arguments: input.arguments ?? {},
+            session_id: sessionId,
+            agent_id: input.agent_id,
+            resolve_workspace: true
+          }
+        );
+        const isError = Boolean(result?.is_error);
+        if (isError) return fail(`Local tool ${localName} returned an error.`, { result });
+        return ok(`Called ${localName}.`, { result });
+      } catch (e) {
+        return fail(String(e));
+      }
+    });
+  };
+  alias(
+    "yaaif_skill_validate_module",
+    "skill_validate_module",
+    "Validate a skill module via platform local tool skill_validate_module (prefer over weak REST validate)."
+  );
+  alias(
+    "yaaif_skill_develop",
+    "skill_develop",
+    "Run platform skill_develop local tool (guided skill edits)."
+  );
+  alias(
+    "yaaif_skill_guided_draft",
+    "skill_create_guided_draft",
+    "Create a guided skill draft via platform local tool skill_create_guided_draft."
+  );
+  alias(
+    "yaaif_skill_mcp_tool_catalog",
+    "skill_mcp_tool_catalog",
+    "List MCP tool catalog entries available for skill tool linking (platform local tool)."
+  );
+  alias(
+    "yaaif_files_list",
+    "files_list",
+    "List ingested files for the Cursor/dev session (platform local tool files_list). Call yaaif_dev_session_ensure first."
+  );
+  alias(
+    "yaaif_file_load_context",
+    "file_load_context",
+    "Load extracted file text via platform local tool file_load_context."
+  );
+}
+
 // src/tools/register.ts
 import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -23864,6 +24085,7 @@ function registerAllTools(server, ctx) {
   registerApprovalTools(server, ctx);
   registerPlanTools(server, ctx);
   registerOpsTools(server, ctx);
+  registerLocalTools(server, ctx);
   registerDoctorTools(server, ctx);
 }
 function registerSkills(server, ctx) {
@@ -24675,7 +24897,8 @@ function registerMcp(server, ctx) {
       load("mcp_servers", () => ctx.api.agentJSON("GET", `/api/mcp-tools/servers${qs}`)),
       load("mcp_deployments", () => ctx.api.apiJSON("GET", `/api/mcp-deployments${qs}`)),
       load("ambient_agents", () => ctx.api.agentJSON("GET", `/api/ambient/agents${qs}`)),
-      load("ambient_workflows", () => ctx.api.agentJSON("GET", `/api/ambient/workflows${qs}`))
+      load("ambient_workflows", () => ctx.api.agentJSON("GET", `/api/ambient/workflows${qs}`)),
+      load("local_tools", () => ctx.api.agentJSON("GET", "/api/local-tools"))
     ]);
     if (Object.keys(errors).length) out.errors = errors;
     return ok("Catalog overview loaded.", out);
@@ -24702,7 +24925,7 @@ async function main() {
   const telemetry = new TelemetryStore(cfg.cursorHome);
   const server = new McpServer({
     name: "yaaif-cursor",
-    version: "0.6.0"
+    version: "0.7.0"
   });
   registerAllTools(server, { cfg, auth, api, profiles, plans, telemetry });
   const transport = new StdioServerTransport();
