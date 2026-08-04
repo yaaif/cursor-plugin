@@ -2,3 +2,4 @@
 **/.env
 **/node_modules/
 mcp-server/bin/
+# Keep dist/yaaif-cursor-mcp.mjs committed for Cursor plugin launches

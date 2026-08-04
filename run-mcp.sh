@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-CLI="$ROOT/packages/mcp/dist/cli.js"
+CLI="$ROOT/dist/yaaif-cursor-mcp.mjs"
 if [[ ! -f "$CLI" ]]; then
-  echo "yaaif cursor mcp missing built bridge at $CLI" >&2
-  echo "Run: (cd \"$ROOT/packages/mcp\" && npm ci && npm run build)" >&2
-  exit 1
+  echo "Missing $CLI — building bundle..." >&2
+  (cd "$ROOT/packages/mcp" && npm ci && npx esbuild src/cli.ts --bundle --platform=node --format=esm --outfile=../../dist/yaaif-cursor-mcp.mjs --packages=bundle)
 fi
 exec node "$CLI" "$@"
