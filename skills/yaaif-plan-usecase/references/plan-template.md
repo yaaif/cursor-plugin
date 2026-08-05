@@ -5,7 +5,7 @@ Replace all `{{PLACEHOLDERS}}`. Delete sections that are not applicable only
 after marking them N/A — prefer keeping the headings for a consistent shape.
 
 ```markdown
-# YAAIF use-case plan: {{TITLE}}
+# YAA\F use-case plan: {{TITLE}}
 
 - **Slug:** {{SLUG}}
 - **Tenant:** {{TENANT_ID}}

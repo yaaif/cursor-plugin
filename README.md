@@ -1,10 +1,10 @@
-# YAAIF Cursor Plugin
+# YAA\F Cursor Plugin
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Official Cursor plugin for **customers and partner developers** to build on [YAAIF](https://yaaif.com):
+Official Cursor plugin for **customers and partner developers** to build on [YAA\F](https://yaaif.com):
 
-1. Authenticate to a YAAIF environment (Keycloak OIDC + PKCE)
+1. Authenticate to a YAA\F environment (Keycloak OIDC + PKCE)
 2. Create skills and load them into the tenant catalog
 3. Scaffold / deploy MCP servers and register tools
 4. Create ambient workflows and test-trigger them
@@ -18,7 +18,7 @@ This repo is also consumed by [yaaif-platform](https://github.com/yaaif/yaaif-pl
 
 ### Cursor Marketplace / Team Marketplace
 
-Install **yaaif**, then configure plugin variables (Customize → Plugins → Configure). Defaults point at hosted YAAIF:
+Install **yaaif**, then configure plugin variables (Customize → Plugins → Configure). Defaults point at hosted YAA\F:
 
 ```bash
 export YAAIF_OIDC_AUTHORITY=https://platform.yaaif.ai/auth/realms/yaaif
@@ -43,7 +43,7 @@ export YAAIF_DEFAULT_TENANT_ID=<tenant-uuid>   # optional
 
 Prefer **`yaaif_platform_use`** + **`yaaif_ensure_session`** over hand-editing every URL.
 
-Your YAAIF operator must enable the public Keycloak client `yaaif-cursor` (see platform script `scripts/keycloak/ensure-yaaif-cursor-client.sh`).
+Your YAA\F operator must enable the public Keycloak client `yaaif-cursor` (see platform script `scripts/keycloak/ensure-yaaif-cursor-client.sh`).
 
 ### Local Traefik (`platform.yaaif.local`)
 

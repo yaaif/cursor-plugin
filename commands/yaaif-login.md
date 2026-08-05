@@ -1,6 +1,6 @@
 ---
 name: yaaif-login
-description: Select YAAIF platform profile, authenticate, and select a tenant
+description: Select YAA\F platform profile, authenticate, and select a tenant
 ---
 
 Use the `yaaif-auth` skill.

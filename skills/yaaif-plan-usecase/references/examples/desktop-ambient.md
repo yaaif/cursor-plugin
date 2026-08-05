@@ -3,7 +3,7 @@
 Use when SAP GUI / local UI work runs on a desktop worker, optionally coordinated with ambient.
 
 ```markdown
-# YAAIF use-case plan: SAP GUI post goods issue
+# YAA\F use-case plan: SAP GUI post goods issue
 
 - **Slug:** sap-gui-pgi
 - **Status:** proposed

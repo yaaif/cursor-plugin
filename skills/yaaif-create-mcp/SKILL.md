@@ -1,11 +1,11 @@
 ---
 name: yaaif-create-mcp
 description: >-
-  Scaffold a YAAIF MCP server, deploy via mcp-deployments, and register tools.
+  Scaffold a YAA\F MCP server, deploy via mcp-deployments, and register tools.
   For customer/partner workspaces without monorepo access.
 ---
 
-# Create MCP tools and deploy on YAAIF
+# Create MCP tools and deploy on YAA\F
 
 ```
 Task Progress:

@@ -1,12 +1,12 @@
 ---
 name: yaaif-doctor
 description: >-
-  Run YAAIF Cursor connectivity diagnostics (platform profile, OIDC, TLS/mTLS,
+  Run YAA\F Cursor connectivity diagnostics (platform profile, OIDC, TLS/mTLS,
   auth/tenant, catalog ping, local tools API). Use when login fails, local
   Traefik TLS breaks, or before plan/create work.
 ---
 
-# YAAIF Doctor
+# YAA\F Doctor
 
 ```
 Task Progress:

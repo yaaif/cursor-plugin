@@ -9,4 +9,4 @@ See also [SECURITY.md](../SECURITY.md).
 | MCP deploy | Malicious image | Operator registry controls; user confirms image tags |
 | PKCE callback | Port hijack | Loopback only, random state + verifier |
 
-Out of scope: defending a compromised Cursor host, or replacing YAAIF server-side authorization.
+Out of scope: defending a compromised Cursor host, or replacing YAA\F server-side authorization.

@@ -1,12 +1,12 @@
 ---
 name: yaaif-create-skill
 description: >-
-  Author a YAAIF SKILL.md pack and load it into the tenant catalog via the
+  Author a YAA\F SKILL.md pack and load it into the tenant catalog via the
   yaaif Cursor MCP bridge. Prefers platform local skill lifecycle tools when
   available. Works without the yaaif-platform monorepo.
 ---
 
-# Create and load a YAAIF skill
+# Create and load a YAA\F skill
 
 ```
 Task Progress:

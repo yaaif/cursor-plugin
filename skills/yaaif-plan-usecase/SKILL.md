@@ -1,7 +1,7 @@
 ---
 name: yaaif-plan-usecase
 description: >-
-  Understand a business use case, propose a YAAIF architecture plan (chat
+  Understand a business use case, propose a YAA\F architecture plan (chat
   skills, ambient workflows, desktop skills, agents, MCP tools, mappings),
   wait for approval, then execute via yaaif-create-* skills and bridge tools.
   Supports interview mode, dry-run, plan verify, approval strategies, and
@@ -10,7 +10,7 @@ description: >-
   end-to-end install plan.
 ---
 
-# Plan and implement a YAAIF use case
+# Plan and implement a YAA\F use case
 
 Turn a use-case description into an **approved install plan**, then implement it
 by delegating to existing plugin skills and `yaaif_*` bridge tools. Do not jump

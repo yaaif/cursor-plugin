@@ -10,4 +10,4 @@ Official scaffolds (public):
 Typical HTTP MCP path: `/mcp`  
 Typical container port: `8080`
 
-For domain data persistence on YAAIF, prefer context-store (`CONTEXT_STORE_BASE_URL`) rather than a private DB when integrating with the platform.
+For domain data persistence on YAA\F, prefer context-store (`CONTEXT_STORE_BASE_URL`) rather than a private DB when integrating with the platform.

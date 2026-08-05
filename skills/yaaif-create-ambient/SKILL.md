@@ -1,11 +1,11 @@
 ---
 name: yaaif-create-ambient
 description: >-
-  Design and install YAAIF ambient workflows via the Cursor MCP bridge for
+  Design and install YAA\F ambient workflows via the Cursor MCP bridge for
   customer/partner tenants (no monorepo required).
 ---
 
-# Create ambient workflows on YAAIF
+# Create ambient workflows on YAA\F
 
 ```
 Task Progress:

@@ -6,7 +6,7 @@ description: >-
   evidence; summarize failure reasons. Never pause/stop/approve/retry.
 ---
 
-# YAAIF operations support (read-only)
+# YAA\F operations support (read-only)
 
 ```
 Task Progress:

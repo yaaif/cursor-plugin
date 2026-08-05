@@ -3,7 +3,7 @@
 Use when the operator only needs interactive MCP Q&A in chat (no ambient, no desktop).
 
 ```markdown
-# YAAIF use-case plan: Vendor FAQ triage
+# YAA\F use-case plan: Vendor FAQ triage
 
 - **Slug:** vendor-faq
 - **Status:** proposed

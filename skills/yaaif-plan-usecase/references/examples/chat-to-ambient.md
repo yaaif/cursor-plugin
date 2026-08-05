@@ -3,7 +3,7 @@
 Use when chat triages and then starts a long-running ambient workflow (optional HITL).
 
 ```markdown
-# YAAIF use-case plan: Invoice clearance
+# YAA\F use-case plan: Invoice clearance
 
 - **Slug:** invoice-clearance
 - **Status:** proposed

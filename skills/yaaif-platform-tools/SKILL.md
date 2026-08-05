@@ -1,12 +1,12 @@
 ---
 name: yaaif-platform-tools
 description: >-
-  Discover and correctly use YAAIF agent-service built-in local tools (skill
+  Discover and correctly use YAA\F agent-service built-in local tools (skill
   lifecycle, files, ambient trigger, session/workflow state) when authoring
   skills or exercising platform functions from Cursor.
 ---
 
-# Discover and use YAAIF platform local tools
+# Discover and use YAA\F platform local tools
 
 ```
 Task Progress:

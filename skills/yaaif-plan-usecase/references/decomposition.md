@@ -1,6 +1,6 @@
 # Use-case decomposition
 
-Decide which YAAIF components a use case needs. Prefer the smallest set that
+Decide which YAA\F components a use case needs. Prefer the smallest set that
 covers the outcome. Prefer **reuse** from `yaaif_catalog_overview` when an
 existing agent, skill, MCP tool, or workflow already matches.
 

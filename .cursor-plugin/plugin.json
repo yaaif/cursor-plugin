@@ -1,9 +1,9 @@
 {
   "name": "yaaif",
-  "description": "Authenticate to YAAIF, plan use cases, and create skills, MCP deployments, and ambient workflows from Cursor.",
+  "description": "Authenticate to YAA\\F, plan use cases, and create skills, MCP deployments, and ambient workflows from Cursor.",
   "version": "0.10.2",
   "author": {
-    "name": "YAAIF / BeezLabs",
+    "name": "YAA\\F / BeezLabs",
     "email": "support@yaaif.com"
   },
   "homepage": "https://github.com/yaaif/cursor-plugin",
@@ -77,5 +77,5 @@
       "YAAIF_AGENT_BASE_URL"
     ]
   },
-  "displayName": "YAAIF"
+  "displayName": "YAA\\F"
 }

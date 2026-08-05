@@ -13,7 +13,7 @@
 This Cursor plugin ships:
 
 - Markdown skills, rules, commands, and docs
-- A local **stdio** MCP bridge (`packages/mcp`) that authenticates to a customer-configured YAAIF environment
+- A local **stdio** MCP bridge (`packages/mcp`) that authenticates to a customer-configured YAA\F environment
 
 It does **not** ship opaque binaries, remote install scripts, or embedded credentials.
 

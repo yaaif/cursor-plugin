@@ -1,6 +1,6 @@
 ---
 name: yaaif-platform-tools
-description: Discover and use YAAIF agent-service local tools for skill authoring
+description: Discover and use YAA\F agent-service local tools for skill authoring
 ---
 
 Use the `yaaif-platform-tools` skill. Authenticate if needed, run

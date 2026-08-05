@@ -1,4 +1,4 @@
-# SKILL.md frontmatter (YAAIF)
+# SKILL.md frontmatter (YAA\F)
 
 ```yaml
 ---

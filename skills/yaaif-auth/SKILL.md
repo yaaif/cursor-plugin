@@ -1,13 +1,13 @@
 ---
 name: yaaif-auth
 description: >-
-  Authenticate to YAAIF from Cursor, select platform profile and tenant, and
-  verify session before skills/MCP/ambient mutations. Use for YAAIF login,
+  Authenticate to YAA\F from Cursor, select platform profile and tenant, and
+  verify session before skills/MCP/ambient mutations. Use for YAA\F login,
   platform switch (hosted/local), tenant selection, whoami, ensure_session, or
   configure_check.
 ---
 
-# YAAIF Auth
+# YAA\F Auth
 
 ```
 Task Progress:

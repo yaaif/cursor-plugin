@@ -6,7 +6,7 @@ Repository: https://github.com/yaaif/cursor-plugin
 
 - [ ] `.cursor-plugin/plugin.json` has unique `name` (`yaaif`), description, version, **relative** `logo` (`assets/logo.svg`), license
 - [ ] Logo files committed: `assets/logo.svg` and `assets/logo.png` (512×512 PNG fallback)
-- [ ] Logo QA: after install, Plugins detail shows the YAAIF “Y” icon (not the generic cube). If cube persists for local installs, use rsync copy + **+ Add local plugin** (see README)
+- [ ] Logo QA: after install, Plugins detail shows the YAA\F “Y” icon (not the generic cube). If cube persists for local installs, use rsync copy + **+ Add local plugin** (see README)
 - [ ] Marketplace preview: relative logo resolves via `raw.githubusercontent.com/.../<sha>/assets/logo.svg`
 - [ ] Absolute GitHub raw URL still works as fallback: https://raw.githubusercontent.com/yaaif/cursor-plugin/main/assets/logo.png
 - [ ] `mcp.json` launches `dist/yaaif-cursor-mcp.mjs` (or published `@yaaif/cursor-mcp` after npm auth)

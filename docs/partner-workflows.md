@@ -24,4 +24,4 @@ my-yaaif-pack/
 └── ambient-workflows/*.json             # optional local drafts
 ```
 
-Load into YAAIF via MCP bridge tools — do not rely on platform SQL seed scripts.
+Load into YAA\F via MCP bridge tools — do not rely on platform SQL seed scripts.
