@@ -90,7 +90,7 @@ MCP bridge is TypeScript (`packages/mcp`), launched via:
 After npm publish:
 
 ```bash
-npx -y @yaaif/cursor-mcp@0.10.2
+npx -y @yaaif/cursor-mcp@0.12.0
 ```
 
 Requires **Node.js ≥ 20**. No Go toolchain.
@@ -105,7 +105,7 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 | `yaaif-create-skill` / `/yaaif-new-skill` | Author + load skill (prefers platform local lifecycle tools) |
 | `yaaif-platform-tools` / `/yaaif-platform-tools` | Discover/call agent-service built-in local tools |
 | `yaaif-ops-support` / `/yaaif-ops` | Read-only incident triage (session/ambient/desktop) |
-| `yaaif-create-mcp` / `/yaaif-new-mcp` | Scaffold + deploy MCP |
+| `yaaif-create-mcp` / `/yaaif-new-mcp` | Scaffold + deploy MCP (compose or k8s GitOps) + API key bind |
 | `yaaif-create-ambient` / `/yaaif-new-workflow` | Ambient workflows |
 
 ### Read / browse tools
@@ -126,6 +126,9 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 | `yaaif_skill_map_agents_merge` | Safe skill↔agent mapping (union) |
 | `yaaif_skill_list` / `yaaif_skill_get` / `yaaif_skill_read_file` / `yaaif_skill_file_tree` | Skills + files |
 | `yaaif_mcp_tools_list` / `yaaif_mcp_tool_get` / `yaaif_mcp_servers_list` / `yaaif_mcp_server_get` / `yaaif_mcp_deployments_list` | MCP catalog + deployments |
+| `yaaif_mcp_deployment_create` / `deploy` / `update` / `redeploy` / `stop` / `delete` / `status` / `logs` / `k8s_status` / `register` | MCP deploy lifecycle (compose + kubernetes_gitops) |
+| `yaaif_deployment_settings_get` / `yaaif_deployment_settings_status` | Deployment-service preflight (read-only) |
+| `yaaif_api_key_list` / `yaaif_api_key_create` / `yaaif_api_key_bind_deployment` / `yaaif_api_key_*` | Scoped API keys for MCP → platform APIs (not S2S) |
 | `yaaif_ambient_agent_list` / `yaaif_ambient_agent_get` / `yaaif_ambient_workflow_list` / `yaaif_ambient_workflow_get` / `yaaif_ambient_runs_list` | Ambient |
 | `yaaif_approval_strategies_list` / `yaaif_approval_strategy_create` / `yaaif_approval_strategy_publish` | HITL strategies |
 | `yaaif_desktop_workers_list` / `yaaif_desktop_skill_mapping_set` | Desktop workers + skill maps |

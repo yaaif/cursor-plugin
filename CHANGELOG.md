@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.12.0
+
+- MCP deployments: full lifecycle for compose + kubernetes_gitops (`update` / `redeploy` / `stop` / `delete`)
+- Read-only `yaaif_deployment_settings_get` + `yaaif_deployment_settings_status` preflight
+- Method-aware `yaaif_mcp_deployment_logs` (compose `/logs` vs k8s `/k8s/logs`) + `yaaif_mcp_deployment_k8s_status`
+- Fix create default `transport_type` → `STREAMABLE_HTTP`; inherit tenant `default_deployment_method` when omitted
+- Create accepts `client_secret_headers`; catalog overview includes deployment settings status
+- Skill/docs: `deploy-methods.md`; create-mcp + plan install order cover both methods
+
+## 0.11.0
+
+- Tenant API keys for MCP → platform APIs: `yaaif_api_key_list|get|create|update|rotate|delete|bind_deployment`
+- `yaaif_mcp_deployment_create` accepts `secret_env`; catalog overview includes `api_keys`
+- Skills/rules: create-mcp + plan install order mint/bind scoped API keys (never S2S in MCP pods)
+- Docs: `skills/yaaif-create-mcp/references/api-keys.md`
+
 ## 0.10.2
 
 - Doctor: `ops_telemetry` check (flow-events proxy / metrics RBAC)

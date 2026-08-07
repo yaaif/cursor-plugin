@@ -24,7 +24,7 @@ Task Progress:
 - [ ] 4. Write plan file + stop for approval
 - [ ] 5. Optional dry-run (yaaif_plan_dry_run) with local_tool_names
 - [ ] 6. Save execution checklist (yaaif_plan_execution_save); include yaaif_skill_tools_check before skill create
-- [ ] 7. Execute (MCP → agents → approvals → ambient → skills → map → desktop)
+- [ ] 7. Execute (MCP → API key bind → agents → approvals → ambient → skills → map → desktop)
 - [ ] 8. On failure: yaaif_plan_execution_resume and continue
 - [ ] 9. Verify (yaaif_plan_verify including local_tool_names) + hand off
 ```
@@ -121,8 +121,12 @@ Before mutating, call `yaaif_plan_execution_save` with the ordered steps (status
 
 Follow this order. Skip steps the plan marks as reuse / not needed.
 
-1. **MCP** — If the plan lists missing tools, use `yaaif-create-mcp`. Verify with
-   `yaaif_mcp_tools_list`.
+1. **MCP** — If the plan lists missing tools, use `yaaif-create-mcp`. Preflight
+   `yaaif_deployment_settings_status`, then create/deploy (compose or
+   kubernetes_gitops). Verify with `yaaif_mcp_tools_list`. When the MCP calls
+   platform APIs (context-store, approvals read, ambient HTTP, …), also
+   `yaaif_api_key_create` + `yaaif_api_key_bind_deployment` (never platform S2S
+   in MCP pods).
 2. **Agents** — `yaaif_agent_create` for each planned agent with the correct
    `agent_type` (`skills` | `workflow` | `desktop`). Reuse existing ids when
    marked reuse. Use `yaaif_agent_update` to revise name/goal/`skill_ids` /
@@ -182,3 +186,4 @@ Report:
   and `yaaif-create-skill` — this skill owns orchestration and sequencing
 - No monorepo required; write plan + drafts in the user workspace
 - Never use S2S, desktop connection keys, or AI-gateway keys
+- For MCP → platform APIs use `yaaif_api_key_*` (scoped API keys), not S2S

@@ -40,6 +40,11 @@ jobs:
           assert "yaaif_ops_analyze" in names
           assert "yaaif_ops_telemetry" in names
           assert "yaaif_doctor" in names
+          assert "yaaif_api_key_create" in names
+          assert "yaaif_api_key_bind_deployment" in names
+          assert "yaaif_mcp_deployment_redeploy" in names
+          assert "yaaif_mcp_deployment_k8s_status" in names
+          assert "yaaif_deployment_settings_status" in names
           assert len(names) >= 40
           print("ok", len(names))
           PY

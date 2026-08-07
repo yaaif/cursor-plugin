@@ -25,6 +25,7 @@ It does **not** ship opaque binaries, remote install scripts, or embedded creden
 - Session also records `profile_id` + `oidc_authority` (issuer mismatch forces re-login)
 - API calls send `Authorization: Bearer` + `X-Tenant-ID` only
 - Does **not** use platform S2S secrets, desktop connection keys, or AI-gateway keys
+- Tenant **API keys** (`yaaif_api_key_*`) are the supported credential for MCP → platform APIs; plaintext is returned once on create/rotate and should be bound (deployment `secret_env` / skill field_map), not committed to repos
 - Tool diagnostics use `redactSecrets` so access/refresh tokens are not echoed
 - Optional local telemetry (`telemetry.json`) is **opt-in**, counters only, never uploaded
 - Shared machines: delete `~/.yaaif/cursor/session.json` after use; prefer per-user home directories
