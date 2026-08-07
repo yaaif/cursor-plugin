@@ -21859,7 +21859,7 @@ var AuthClient = class {
         }
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end(`<!doctype html><html><body style="font-family:system-ui;padding:2rem">
-<h2>YAAIF login complete</h2>
+<h2>YAA\\F login complete</h2>
 <p>Signed in to <code>${this.cfg.oidcAuthority}</code>.</p>
 <p>You can close this window and return to Cursor.</p>
 </body></html>`);
@@ -22321,7 +22321,7 @@ var BUILTIN_PROFILES = [
   {
     id: "hosted",
     label: "Hosted (platform.yaaif.ai)",
-    description: "Production / hosted YAAIF \u2014 OIDC and APIs on platform.yaaif.ai",
+    description: "Production / hosted YAA\\F \u2014 OIDC and APIs on platform.yaaif.ai",
     builtin: true,
     oidc_authority: "https://platform.yaaif.ai/auth/realms/yaaif",
     ...deriveServiceUrls("https://platform.yaaif.ai"),
@@ -22706,7 +22706,7 @@ function errPayload(e) {
 }
 function registerAuthTools(server, ctx) {
   server.registerTool("yaaif_platform_list", {
-    description: "List builtin and custom YAAIF platform profiles (hosted, local-hybrid, local, \u2026).",
+    description: "List builtin and custom YAA\\F platform profiles (hosted, local-hybrid, local, \u2026).",
     inputSchema: {}
   }, async () => {
     const active = await ctx.profiles.getActive();
@@ -22875,7 +22875,7 @@ function registerAuthTools(server, ctx) {
         tenant = { auto_select_error: String(e) };
       }
       void ctx.telemetry.increment("login_ok");
-      return ok("Logged in to YAAIF.", {
+      return ok("Logged in to YAA\\F.", {
         email: session.email,
         name: session.name,
         subject: session.subject,
@@ -22920,7 +22920,7 @@ function registerAuthTools(server, ctx) {
     }
   });
   server.registerTool("yaaif_logout", {
-    description: "Clear the local YAAIF Cursor session. Optionally open Keycloak end_session.",
+    description: "Clear the local YAA\\F Cursor session. Optionally open Keycloak end_session.",
     inputSchema: { end_session: external_exports.boolean().optional() }
   }, async ({ end_session }) => {
     const result = await ctx.auth.logout({ endSession: Boolean(end_session) });
@@ -22960,7 +22960,7 @@ function registerAuthTools(server, ctx) {
     } catch {
     }
     const selected = Array.isArray(tenantsNorm) ? tenantsNorm.find((t) => t.is_selected) : void 0;
-    return ok("Authenticated YAAIF session.", {
+    return ok("Authenticated YAA\\F session.", {
       authenticated: true,
       email: sess.email,
       name: sess.name,
@@ -23887,6 +23887,23 @@ function registerDoctorTools(server, ctx) {
         void ctx.telemetry.increment("doctor_local_tools_smoke_fail");
       }
       try {
+        const lifecycle = await ctx.api.agentJSON("GET", "/api/file-attachments/registry-lifecycle");
+        const ready = Boolean(lifecycle?.readiness?.ready ?? lifecycle?.readiness?.record_sink_wired);
+        add("file_registry", ready, {
+          strict: lifecycle?.strict,
+          readiness: lifecycle?.readiness
+        });
+        void ctx.telemetry.increment(ready ? "doctor_file_registry_ok" : "doctor_file_registry_fail");
+      } catch (e) {
+        const msg = String(e);
+        const authDenied = /\b403\b/.test(msg);
+        add("file_registry", authDenied, {
+          error: msg.slice(0, 240),
+          hint: authDenied ? "Route exists; grant agent LLM models read for registry lifecycle" : "Ensure agent-service exposes GET /api/file-attachments/registry-lifecycle"
+        });
+        void ctx.telemetry.increment(authDenied ? "doctor_file_registry_ok" : "doctor_file_registry_fail");
+      }
+      try {
         await ctx.api.agentJSON("GET", "/api/ops/correlate");
         add("ops_api", true, { note: "unexpected 200 without seed" });
         void ctx.telemetry.increment("doctor_ops_api_ok");
@@ -24714,7 +24731,7 @@ function registerSkills(server, ctx) {
     }
   });
   server.registerTool("yaaif_skill_create", {
-    description: "Create a skill pack in YAAIF (writes SKILL.md + skill_configs).",
+    description: "Create a skill pack in YAA\\F (writes SKILL.md + skill_configs).",
     inputSchema: {
       id: external_exports.string(),
       description: external_exports.string(),
@@ -25175,7 +25192,7 @@ function registerAmbient(server, ctx) {
 }
 function registerMcp(server, ctx) {
   server.registerTool("yaaif_mcp_scaffold", {
-    description: "Scaffold a new MCP server from official YAAIF templates into the workspace.",
+    description: "Scaffold a new MCP server from official YAA\\F templates into the workspace.",
     inputSchema: {
       name: external_exports.string(),
       language: external_exports.enum(["go", "python"]).optional(),
