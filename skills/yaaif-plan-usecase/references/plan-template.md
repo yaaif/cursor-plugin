@@ -83,15 +83,16 @@ after marking them N/A — prefer keeping the headings for a consistent shape.
 
 ## 6. Install order
 
-1. [ ] MCP deploy/register (if needed)
-2. [ ] Create / bind agents (`yaaif_agent_create` / `yaaif_agent_update`)
-3. [ ] Approval strategy create+publish (if HITL)
-4. [ ] Ambient agent + workflow (if needed)
-5. [ ] Create / load skills
-6. [ ] Enable + `yaaif_skill_map_agents_merge`
-7. [ ] Desktop skill mappings (if needed)
-8. [ ] Refresh / runtime reload
-9. [ ] Optional `yaaif_plan_dry_run` before mutate; then `yaaif_plan_verify` + test-trigger
+1. [ ] MCP deploy/register (if needed) — preflight settings; compose or kubernetes_gitops
+2. [ ] API key create + bind (`yaaif_api_key_*`) when MCP → platform APIs
+3. [ ] Create / bind agents (`yaaif_agent_create` / `yaaif_agent_update`)
+4. [ ] Approval strategy create+publish (if HITL)
+5. [ ] Ambient agent + workflow (if needed)
+6. [ ] Create / load skills
+7. [ ] Enable + `yaaif_skill_map_agents_merge`
+8. [ ] Desktop skill mappings (if needed)
+9. [ ] Refresh / runtime reload
+10. [ ] Optional `yaaif_plan_dry_run` before mutate; then `yaaif_plan_verify` + test-trigger
 
 ## 7. Test plan
 
@@ -103,7 +104,7 @@ after marking them N/A — prefer keeping the headings for a consistent shape.
 
 - Desktop worker↔skill mappings (Admin / control-plane) if desktop skills are used
 - Approval strategy ids if approval nodes exist
-- Missing credentials / MCP secrets
+- Missing credentials / MCP secrets — use `yaaif_api_key_*` for MCP → platform APIs (never S2S in MCP pods)
 - Other: …
 
 ## 9. Execution log

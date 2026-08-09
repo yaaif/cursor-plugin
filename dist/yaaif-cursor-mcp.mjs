@@ -24642,6 +24642,617 @@ function registerOpsSupportTools(server, ctx) {
   });
 }
 
+// src/lib/mcpDeployments.ts
+function normalizeTransportType(raw) {
+  const t = (raw || "").trim().toUpperCase();
+  if (t === "SSE") return "SSE";
+  return "STREAMABLE_HTTP";
+}
+function isKubernetesGitops(method) {
+  return (method || "").trim() === "kubernetes_gitops";
+}
+function resolveDeploymentMethod(explicit, settings) {
+  const fromArg = (explicit || "").trim();
+  if (fromArg === "docker_compose" || fromArg === "kubernetes_gitops") {
+    return fromArg;
+  }
+  const fromSettings = (settings?.default_deployment_method || "").trim();
+  if (fromSettings === "docker_compose" || fromSettings === "kubernetes_gitops") {
+    return fromSettings;
+  }
+  return "docker_compose";
+}
+function deploymentToUpdateBody(deployment, overrides = {}) {
+  const transport = normalizeTransportType(
+    overrides.transport_type ?? deployment.transport_type
+  );
+  const body = {
+    name: overrides.name ?? deployment.name,
+    image: overrides.image ?? deployment.image,
+    deployment_method: overrides.deployment_method ?? deployment.deployment_method ?? "docker_compose",
+    container_port: overrides.container_port ?? deployment.container_port ?? 8080,
+    mcp_path: overrides.mcp_path ?? deployment.mcp_path ?? "/mcp",
+    endpoint_mode: overrides.endpoint_mode ?? deployment.endpoint_mode ?? "docker_name",
+    transport_type: transport,
+    env: overrides.env ?? deployment.env ?? {},
+    secret_env: overrides.secret_env ?? deployment.secret_env ?? [],
+    client_secret_headers: overrides.client_secret_headers ?? deployment.client_secret_headers ?? [],
+    auto_register: overrides.auto_register ?? deployment.auto_register ?? true,
+    auto_import_tools: overrides.auto_import_tools ?? deployment.auto_import_tools ?? true
+  };
+  if ("registry_credential_id" in overrides) {
+    if (overrides.registry_credential_id) {
+      body.registry_credential_id = overrides.registry_credential_id;
+    }
+  } else if (deployment.registry_credential_id) {
+    body.registry_credential_id = deployment.registry_credential_id;
+  }
+  if ("endpoint_host" in overrides) {
+    if (overrides.endpoint_host) body.endpoint_host = overrides.endpoint_host;
+  } else if (deployment.endpoint_host) {
+    body.endpoint_host = deployment.endpoint_host;
+  }
+  return body;
+}
+function deploymentLogsPath(deploymentId, method, tail) {
+  const params = new URLSearchParams();
+  if (tail && tail > 0) params.set("tail", String(tail));
+  const qs = params.size ? `?${params}` : "";
+  const id = encodeURIComponent(deploymentId);
+  if (isKubernetesGitops(method)) {
+    return `/api/mcp-deployments/${id}/k8s/logs${qs}`;
+  }
+  return `/api/mcp-deployments/${id}/logs${qs}`;
+}
+
+// src/tools/registerApiKeys.ts
+var PLATFORM_API_KEY_ENV = "YAAIF_MCP_PLATFORM_API_KEY";
+var PLATFORM_API_KEY_HEADER = "X-YAAIF-Platform-Key";
+var KNOWN_SCOPES = [
+  "context_store:read",
+  "context_store:write",
+  "approvals:read",
+  "local_tools:list",
+  "local_tools:call",
+  "ambient:read",
+  "ambient:trigger",
+  "skills:read",
+  "files:read",
+  "files:write",
+  "files:share"
+];
+var allowlistsSchema = external_exports.object({
+  allowed_mcp_server_ids: external_exports.array(external_exports.string()).optional(),
+  allowed_context_plugins: external_exports.array(external_exports.string()).optional(),
+  allowed_workflow_ids: external_exports.array(external_exports.string()).optional(),
+  allowed_agent_ids: external_exports.array(external_exports.string()).optional()
+}).optional();
+function registerApiKeyTools(server, ctx) {
+  server.registerTool("yaaif_api_key_list", {
+    description: "List tenant API keys (scoped ymp- credentials for MCP/downstream \u2192 platform APIs). Returns known scopes vocabulary.",
+    inputSchema: {}
+  }, async () => {
+    try {
+      return ok("Listed API keys.", {
+        result: await ctx.api.apiJSON("GET", "/api/mcp-platform-keys"),
+        known_scopes: KNOWN_SCOPES
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_api_key_get", {
+    description: "Get one tenant API key by id (metadata only; plaintext is never retrievable).",
+    inputSchema: { key_id: external_exports.string() }
+  }, async ({ key_id }) => {
+    try {
+      return ok("Fetched API key.", {
+        key: await ctx.api.apiJSON("GET", `/api/mcp-platform-keys/${encodeURIComponent(key_id)}`)
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_api_key_create", {
+    description: "Create a scoped API key for MCP/downstream platform access. Plaintext is returned once \u2014 bind via yaaif_api_key_bind_deployment or skill field_map; do not inject platform S2S into MCP pods. Prefer least-privilege scopes (e.g. context_store:read/write).",
+    inputSchema: {
+      name: external_exports.string(),
+      scopes: external_exports.array(external_exports.string()).min(1),
+      allowlists: allowlistsSchema
+    }
+  }, async ({ name, scopes, allowlists }) => {
+    try {
+      const body = { name, scopes };
+      if (allowlists) body.allowlists = allowlists;
+      const result = await ctx.api.apiJSON("POST", "/api/mcp-platform-keys", body);
+      return ok(`Created API key ${name}. Plaintext shown once \u2014 bind then discard from chat logs.`, {
+        result,
+        next_steps: [
+          "Prefer yaaif_api_key_bind_deployment with the credential_id from binding_hints",
+          "Or skill/tool field_map: api_key \u2192 headers.X-YAAIF-Platform-Key",
+          "Redeploy MCP after secret_env bind so the pod receives YAAIF_MCP_PLATFORM_API_KEY"
+        ]
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_api_key_update", {
+    description: "Update API key name, scopes, allowlists, or enabled flag.",
+    inputSchema: {
+      key_id: external_exports.string(),
+      name: external_exports.string().optional(),
+      scopes: external_exports.array(external_exports.string()).optional(),
+      allowlists: allowlistsSchema,
+      enabled: external_exports.boolean().optional(),
+      clear_expiry: external_exports.boolean().optional()
+    }
+  }, async (args) => {
+    const body = {};
+    if (args.name !== void 0) body.name = args.name;
+    if (args.scopes !== void 0) body.scopes = args.scopes;
+    if (args.allowlists !== void 0) body.allowlists = args.allowlists;
+    if (args.enabled !== void 0) body.enabled = args.enabled;
+    if (args.clear_expiry) body.clear_expiry = true;
+    try {
+      return ok("Updated API key.", {
+        key: await ctx.api.apiJSON(
+          "PATCH",
+          `/api/mcp-platform-keys/${encodeURIComponent(args.key_id)}`,
+          body
+        )
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_api_key_rotate", {
+    description: "Rotate an API key. Keeps the same Credentials credential_id (bindings stay valid). Plaintext returned once; previous hash remains valid for a short grace window.",
+    inputSchema: { key_id: external_exports.string() }
+  }, async ({ key_id }) => {
+    try {
+      return ok("Rotated API key. Plaintext shown once.", {
+        result: await ctx.api.apiJSON(
+          "POST",
+          `/api/mcp-platform-keys/${encodeURIComponent(key_id)}/rotate`,
+          {}
+        )
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_api_key_delete", {
+    description: "Delete (revoke) an API key and its linked Credentials record when present.",
+    inputSchema: { key_id: external_exports.string() }
+  }, async ({ key_id }) => {
+    try {
+      await ctx.api.apiJSON("DELETE", `/api/mcp-platform-keys/${encodeURIComponent(key_id)}`);
+      return ok(`Deleted API key ${key_id}.`, { key_id });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_api_key_bind_deployment", {
+    description: "Bind an API key Credentials record to an MCP deployment secret_env as YAAIF_MCP_PLATFORM_API_KEY (process fallback for ambient/desktop). Optionally redeploy so the pod picks up the env. Prefer this over putting platform S2S into MCP pods.",
+    inputSchema: {
+      credential_id: external_exports.string(),
+      deployment_id: external_exports.string(),
+      env_name: external_exports.string().optional(),
+      redeploy: external_exports.boolean().optional()
+    }
+  }, async ({ credential_id, deployment_id, env_name, redeploy }) => {
+    const envName = (env_name || PLATFORM_API_KEY_ENV).trim() || PLATFORM_API_KEY_ENV;
+    const credId = credential_id.trim();
+    if (!credId) return fail("credential_id is required");
+    try {
+      const deployment = await ctx.api.apiJSON(
+        "GET",
+        `/api/mcp-deployments/${encodeURIComponent(deployment_id)}`
+      );
+      if (!deployment?.id && !deployment?.name) {
+        return fail(`deployment not found: ${deployment_id}`);
+      }
+      const nextSecretEnv = [...deployment.secret_env || []];
+      const mapping = {
+        env_name: envName,
+        credential_id: credId,
+        credential_key: "api_key"
+      };
+      const existingIndex = nextSecretEnv.findIndex(
+        (item) => (item.env_name || "").trim() === envName || (item.env_name || "").trim() === PLATFORM_API_KEY_ENV
+      );
+      if (existingIndex >= 0) nextSecretEnv[existingIndex] = mapping;
+      else nextSecretEnv.push(mapping);
+      const updated = await ctx.api.apiJSON(
+        "PUT",
+        `/api/mcp-deployments/${encodeURIComponent(deployment_id)}`,
+        deploymentToUpdateBody(deployment, { secret_env: nextSecretEnv })
+      );
+      let redeployResult;
+      if (redeploy) {
+        try {
+          redeployResult = await ctx.api.apiJSON(
+            "POST",
+            `/api/mcp-deployments/${encodeURIComponent(deployment_id)}/redeploy`,
+            {}
+          );
+        } catch (e) {
+          return ok("Bound secret_env; redeploy failed \u2014 fix image/platform and redeploy manually.", {
+            deployment: updated,
+            binding: mapping,
+            field_map_hint: {
+              api_key: `headers.${PLATFORM_API_KEY_HEADER}`
+            },
+            redeploy_error: String(e)
+          });
+        }
+      }
+      return ok(
+        `Bound ${envName} \u2190 Credentials ${credId} on deployment ${deployment.name || deployment_id}.`,
+        {
+          deployment: updated,
+          binding: mapping,
+          field_map_hint: {
+            api_key: `headers.${PLATFORM_API_KEY_HEADER}`
+          },
+          redeployed: Boolean(redeploy),
+          redeploy_result: redeployResult,
+          note: redeploy ? void 0 : "Call yaaif_mcp_deployment_deploy / redeploy so the pod receives the env."
+        }
+      );
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+}
+
+// src/tools/registerMcpDeployments.ts
+var secretEnvSchema = external_exports.array(
+  external_exports.object({
+    env_name: external_exports.string(),
+    credential_id: external_exports.string(),
+    credential_key: external_exports.string().optional()
+  })
+);
+var clientSecretHeadersSchema = external_exports.array(
+  external_exports.object({
+    header_name: external_exports.string(),
+    credential_id: external_exports.string(),
+    credential_key: external_exports.string().optional()
+  })
+);
+function mapSecretEnv(items) {
+  return (items ?? []).map((item) => ({
+    env_name: item.env_name,
+    credential_id: item.credential_id,
+    credential_key: item.credential_key || "api_key"
+  }));
+}
+function mapClientSecretHeaders(items) {
+  return (items ?? []).map((item) => ({
+    header_name: item.header_name,
+    credential_id: item.credential_id,
+    credential_key: item.credential_key || "api_key"
+  }));
+}
+async function fetchSettings(ctx) {
+  try {
+    return await ctx.api.apiJSON("GET", "/api/deployment-settings");
+  } catch {
+    return null;
+  }
+}
+function registerMcpDeploymentTools(server, ctx) {
+  server.registerTool("yaaif_deployment_settings_get", {
+    description: "Read tenant deployment-service settings (default method, compose/k8s/gitops knobs). Read-only \u2014 configure GitOps/kube in Admin UI.",
+    inputSchema: {}
+  }, async () => {
+    try {
+      return ok("Fetched deployment settings.", {
+        settings: await ctx.api.apiJSON("GET", "/api/deployment-settings")
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_deployment_settings_status", {
+    description: "Preflight deployment-service health (docker / kubernetes / gitops / agent / api-server). Call before kubernetes_gitops deploy; require gitops healthy.",
+    inputSchema: {}
+  }, async () => {
+    try {
+      return ok("Fetched deployment settings status.", {
+        status: await ctx.api.apiJSON("GET", "/api/deployment-settings/status")
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_mcp_deployment_create", {
+    description: "Create an MCP deployment (docker_compose or kubernetes_gitops). transport_type must be STREAMABLE_HTTP or SSE. For k8s prefer endpoint_mode=docker_name (auto Service DNS); use custom + endpoint_host only when needed. Prefer API key secret_env over platform S2S.",
+    inputSchema: {
+      name: external_exports.string(),
+      image: external_exports.string(),
+      deployment_method: external_exports.enum(["docker_compose", "kubernetes_gitops"]).optional(),
+      container_port: external_exports.number().optional(),
+      mcp_path: external_exports.string().optional(),
+      endpoint_mode: external_exports.enum(["docker_name", "localhost", "custom"]).optional(),
+      endpoint_host: external_exports.string().optional(),
+      transport_type: external_exports.enum(["STREAMABLE_HTTP", "SSE"]).optional(),
+      env: external_exports.record(external_exports.string()).optional(),
+      secret_env: secretEnvSchema.optional(),
+      client_secret_headers: clientSecretHeadersSchema.optional(),
+      auto_register: external_exports.boolean().optional(),
+      auto_import_tools: external_exports.boolean().optional(),
+      registry_credential_id: external_exports.string().optional()
+    }
+  }, async (args) => {
+    try {
+      const settings = args.deployment_method ? null : await fetchSettings(ctx);
+      const method = resolveDeploymentMethod(args.deployment_method, settings);
+      const body = {
+        name: args.name,
+        image: args.image,
+        deployment_method: method,
+        container_port: args.container_port ?? 8080,
+        mcp_path: args.mcp_path || "/mcp",
+        endpoint_mode: args.endpoint_mode || "docker_name",
+        transport_type: normalizeTransportType(args.transport_type),
+        env: args.env ?? {},
+        secret_env: mapSecretEnv(args.secret_env),
+        client_secret_headers: mapClientSecretHeaders(args.client_secret_headers),
+        auto_register: args.auto_register ?? true,
+        auto_import_tools: args.auto_import_tools ?? true
+      };
+      if (args.endpoint_host) body.endpoint_host = args.endpoint_host;
+      if (args.registry_credential_id) body.registry_credential_id = args.registry_credential_id;
+      return ok(`Created MCP deployment ${args.name} (${method}).`, {
+        deployment: await ctx.api.apiJSON("POST", "/api/mcp-deployments", body),
+        deployment_method: method,
+        next_steps: method === "kubernetes_gitops" ? [
+          "Confirm yaaif_deployment_settings_status gitops is healthy",
+          "yaaif_mcp_deployment_deploy then poll status + yaaif_mcp_deployment_k8s_status",
+          "yaaif_mcp_deployment_logs (routes to /k8s/logs)"
+        ] : [
+          "yaaif_mcp_deployment_deploy then poll status",
+          "yaaif_mcp_deployment_logs",
+          "yaaif_mcp_deployment_register if needed"
+        ]
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_mcp_deployment_update", {
+    description: "Update an MCP deployment (image/env/secret_env/endpoint/\u2026). GETs current record, merges patches, PUTs. Call yaaif_mcp_deployment_redeploy afterward for rollout.",
+    inputSchema: {
+      deployment_id: external_exports.string(),
+      name: external_exports.string().optional(),
+      image: external_exports.string().optional(),
+      deployment_method: external_exports.enum(["docker_compose", "kubernetes_gitops"]).optional(),
+      container_port: external_exports.number().optional(),
+      mcp_path: external_exports.string().optional(),
+      endpoint_mode: external_exports.enum(["docker_name", "localhost", "custom"]).optional(),
+      endpoint_host: external_exports.string().optional(),
+      clear_endpoint_host: external_exports.boolean().optional(),
+      transport_type: external_exports.enum(["STREAMABLE_HTTP", "SSE"]).optional(),
+      env: external_exports.record(external_exports.string()).optional(),
+      secret_env: secretEnvSchema.optional(),
+      client_secret_headers: clientSecretHeadersSchema.optional(),
+      auto_register: external_exports.boolean().optional(),
+      auto_import_tools: external_exports.boolean().optional(),
+      registry_credential_id: external_exports.string().optional(),
+      clear_registry_credential_id: external_exports.boolean().optional()
+    }
+  }, async (args) => {
+    try {
+      const deployment = await ctx.api.apiJSON(
+        "GET",
+        `/api/mcp-deployments/${encodeURIComponent(args.deployment_id)}`
+      );
+      const overrides = {};
+      if (args.name !== void 0) overrides.name = args.name;
+      if (args.image !== void 0) overrides.image = args.image;
+      if (args.deployment_method !== void 0) overrides.deployment_method = args.deployment_method;
+      if (args.container_port !== void 0) overrides.container_port = args.container_port;
+      if (args.mcp_path !== void 0) overrides.mcp_path = args.mcp_path;
+      if (args.endpoint_mode !== void 0) overrides.endpoint_mode = args.endpoint_mode;
+      if (args.clear_endpoint_host) overrides.endpoint_host = null;
+      else if (args.endpoint_host !== void 0) overrides.endpoint_host = args.endpoint_host;
+      if (args.transport_type !== void 0) overrides.transport_type = args.transport_type;
+      if (args.env !== void 0) overrides.env = args.env;
+      if (args.secret_env !== void 0) overrides.secret_env = mapSecretEnv(args.secret_env);
+      if (args.client_secret_headers !== void 0) {
+        overrides.client_secret_headers = mapClientSecretHeaders(args.client_secret_headers);
+      }
+      if (args.auto_register !== void 0) overrides.auto_register = args.auto_register;
+      if (args.auto_import_tools !== void 0) overrides.auto_import_tools = args.auto_import_tools;
+      if (args.clear_registry_credential_id) overrides.registry_credential_id = null;
+      else if (args.registry_credential_id !== void 0) {
+        overrides.registry_credential_id = args.registry_credential_id;
+      }
+      const body = deploymentToUpdateBody(deployment, overrides);
+      return ok("Updated MCP deployment.", {
+        deployment: await ctx.api.apiJSON(
+          "PUT",
+          `/api/mcp-deployments/${encodeURIComponent(args.deployment_id)}`,
+          body
+        ),
+        next_steps: ["Call yaaif_mcp_deployment_redeploy (or deploy) to apply changes"]
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_mcp_deployment_deploy", {
+    description: "Deploy an MCP deployment by id (compose up, or GitOps overlay write/push for kubernetes_gitops).",
+    inputSchema: { deployment_id: external_exports.string() }
+  }, async ({ deployment_id }) => {
+    try {
+      return ok("Deploy started/updated.", {
+        deployment: await ctx.api.apiJSON(
+          "POST",
+          `/api/mcp-deployments/${encodeURIComponent(deployment_id)}/deploy`,
+          {}
+        )
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_mcp_deployment_redeploy", {
+    description: "Roll out an existing MCP deployment (compose recreate or k8s restart/GitOps sync). Use after update or secret_env bind.",
+    inputSchema: { deployment_id: external_exports.string() }
+  }, async ({ deployment_id }) => {
+    try {
+      return ok("Redeploy started.", {
+        deployment: await ctx.api.apiJSON(
+          "POST",
+          `/api/mcp-deployments/${encodeURIComponent(deployment_id)}/redeploy`,
+          {}
+        )
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_mcp_deployment_stop", {
+    description: "Stop an MCP deployment (compose stop or k8s scale-down via GitOps).",
+    inputSchema: { deployment_id: external_exports.string() }
+  }, async ({ deployment_id }) => {
+    try {
+      return ok("Stop requested.", {
+        deployment: await ctx.api.apiJSON(
+          "POST",
+          `/api/mcp-deployments/${encodeURIComponent(deployment_id)}/stop`,
+          {}
+        )
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_mcp_deployment_delete", {
+    description: "Delete an MCP deployment. cascade_agent=true (default) also removes the linked agent-service MCP server/tools.",
+    inputSchema: {
+      deployment_id: external_exports.string(),
+      cascade_agent: external_exports.boolean().optional()
+    }
+  }, async ({ deployment_id, cascade_agent }) => {
+    const cascade = cascade_agent !== false;
+    const params = new URLSearchParams({ cascade_agent: cascade ? "true" : "false" });
+    try {
+      await ctx.api.apiJSON(
+        "DELETE",
+        `/api/mcp-deployments/${encodeURIComponent(deployment_id)}?${params}`
+      );
+      return ok(`Deleted MCP deployment ${deployment_id}.`, {
+        deployment_id,
+        cascade_agent: cascade
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_mcp_deployment_register", {
+    description: "Register a deployed MCP server into the agent-service tool catalog.",
+    inputSchema: { deployment_id: external_exports.string() }
+  }, async ({ deployment_id }) => {
+    try {
+      return ok("Registered MCP deployment into catalog.", {
+        deployment: await ctx.api.apiJSON(
+          "POST",
+          `/api/mcp-deployments/${encodeURIComponent(deployment_id)}/register`,
+          {}
+        )
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_mcp_deployment_status", {
+    description: "Get MCP deployment status (phase, status_stages, generated_endpoint, kubernetes_namespace, overlay/compose paths).",
+    inputSchema: { deployment_id: external_exports.string() }
+  }, async ({ deployment_id }) => {
+    try {
+      return ok("Fetched MCP deployment.", {
+        deployment: await ctx.api.apiJSON(
+          "GET",
+          `/api/mcp-deployments/${encodeURIComponent(deployment_id)}`
+        )
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_mcp_deployment_logs", {
+    description: "Fetch MCP deployment logs. Routes automatically: docker_compose \u2192 /logs; kubernetes_gitops \u2192 /k8s/logs.",
+    inputSchema: { deployment_id: external_exports.string(), tail: external_exports.number().optional() }
+  }, async ({ deployment_id, tail }) => {
+    try {
+      const deployment = await ctx.api.apiJSON(
+        "GET",
+        `/api/mcp-deployments/${encodeURIComponent(deployment_id)}`
+      );
+      const method = deployment.deployment_method;
+      const path2 = deploymentLogsPath(deployment_id, method, tail);
+      const logs = await ctx.api.apiJSON("GET", path2);
+      return ok("Fetched MCP deployment logs.", {
+        logs,
+        deployment_method: method,
+        source: isK8s(method) ? "k8s" : "docker_compose"
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_mcp_deployment_k8s_status", {
+    description: "Kubernetes runtime introspection for a kubernetes_gitops deployment (pod + Deployment status). Returns clear error if K8s integration is disabled.",
+    inputSchema: { deployment_id: external_exports.string() }
+  }, async ({ deployment_id }) => {
+    const id = encodeURIComponent(deployment_id);
+    const out = {};
+    const errors = {};
+    const load = async (key, path2) => {
+      try {
+        out[key] = await ctx.api.apiJSON("GET", path2);
+      } catch (e) {
+        errors[key] = String(e);
+      }
+    };
+    await Promise.all([
+      load("pod", `/api/mcp-deployments/${id}/k8s/pod`),
+      load("deployment", `/api/mcp-deployments/${id}/k8s/deployment`)
+    ]);
+    if (Object.keys(errors).length && Object.keys(out).length === 0) {
+      return fail(
+        `Kubernetes status unavailable (is DEPLOYMENT_KUBERNETES_ENABLED set?). ${Object.values(errors).join("; ")}`
+      );
+    }
+    return ok("Fetched Kubernetes deployment status.", {
+      ...out,
+      ...Object.keys(errors).length ? { errors } : {}
+    });
+  });
+  server.registerTool("yaaif_mcp_deployments_list", {
+    description: "List MCP deployments (api-server / deployment-service).",
+    inputSchema: { q: external_exports.string().optional(), limit: external_exports.number().optional() }
+  }, async ({ q, limit }) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (limit) params.set("limit", String(limit));
+    const path2 = `/api/mcp-deployments${params.size ? `?${params}` : ""}`;
+    try {
+      return ok("Listed MCP deployments.", { result: await ctx.api.apiJSON("GET", path2) });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+}
+function isK8s(method) {
+  return (method || "").trim() === "kubernetes_gitops";
+}
+
 // src/tools/register.ts
 import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24652,6 +25263,8 @@ function registerAllTools(server, ctx) {
   registerSkills(server, ctx);
   registerAmbient(server, ctx);
   registerMcp(server, ctx);
+  registerMcpDeploymentTools(server, ctx);
+  registerApiKeyTools(server, ctx);
   registerDesktopTools(server, ctx);
   registerApprovalTools(server, ctx);
   registerPlanTools(server, ctx);
@@ -25235,101 +25848,13 @@ function registerMcp(server, ctx) {
         language: lang,
         template: repo,
         next_steps: [
+          "yaaif_deployment_settings_status (confirm method / gitops health)",
           "Implement tools from contracts",
           "Build and push container image",
-          "Call yaaif_mcp_deployment_create + deploy + register"
+          "Call yaaif_mcp_deployment_create + deploy + register",
+          "If the MCP calls platform APIs: yaaif_api_key_create + yaaif_api_key_bind_deployment"
         ]
       });
-    } catch (e) {
-      return fail(String(e));
-    }
-  });
-  server.registerTool("yaaif_mcp_deployment_create", {
-    description: "Create an MCP deployment record (api-server \u2192 deployment-service).",
-    inputSchema: {
-      name: external_exports.string(),
-      image: external_exports.string(),
-      deployment_method: external_exports.enum(["docker_compose", "kubernetes_gitops"]).optional(),
-      container_port: external_exports.number().optional(),
-      mcp_path: external_exports.string().optional(),
-      endpoint_mode: external_exports.string().optional(),
-      endpoint_host: external_exports.string().optional(),
-      transport_type: external_exports.string().optional(),
-      env: external_exports.record(external_exports.string()).optional(),
-      auto_register: external_exports.boolean().optional(),
-      auto_import_tools: external_exports.boolean().optional(),
-      registry_credential_id: external_exports.string().optional()
-    }
-  }, async (args) => {
-    const body = {
-      name: args.name,
-      image: args.image,
-      deployment_method: args.deployment_method || "docker_compose",
-      container_port: args.container_port ?? 8080,
-      mcp_path: args.mcp_path || "/mcp",
-      endpoint_mode: args.endpoint_mode || "docker_name",
-      transport_type: args.transport_type || "HTTP",
-      env: args.env ?? {},
-      secret_env: [],
-      client_secret_headers: [],
-      auto_register: args.auto_register ?? true,
-      auto_import_tools: args.auto_import_tools ?? true
-    };
-    if (args.endpoint_host) body.endpoint_host = args.endpoint_host;
-    if (args.registry_credential_id) body.registry_credential_id = args.registry_credential_id;
-    try {
-      return ok(`Created MCP deployment ${args.name}.`, {
-        deployment: await ctx.api.apiJSON("POST", "/api/mcp-deployments", body)
-      });
-    } catch (e) {
-      return fail(String(e));
-    }
-  });
-  server.registerTool("yaaif_mcp_deployment_deploy", {
-    description: "Deploy an MCP deployment by id.",
-    inputSchema: { deployment_id: external_exports.string() }
-  }, async ({ deployment_id }) => {
-    try {
-      return ok("Deploy started/updated.", {
-        deployment: await ctx.api.apiJSON("POST", `/api/mcp-deployments/${encodeURIComponent(deployment_id)}/deploy`, {})
-      });
-    } catch (e) {
-      return fail(String(e));
-    }
-  });
-  server.registerTool("yaaif_mcp_deployment_register", {
-    description: "Register a deployed MCP server into the agent-service tool catalog.",
-    inputSchema: { deployment_id: external_exports.string() }
-  }, async ({ deployment_id }) => {
-    try {
-      return ok("Registered MCP deployment into catalog.", {
-        deployment: await ctx.api.apiJSON("POST", `/api/mcp-deployments/${encodeURIComponent(deployment_id)}/register`, {})
-      });
-    } catch (e) {
-      return fail(String(e));
-    }
-  });
-  server.registerTool("yaaif_mcp_deployment_status", {
-    description: "Get MCP deployment status by id.",
-    inputSchema: { deployment_id: external_exports.string() }
-  }, async ({ deployment_id }) => {
-    try {
-      return ok("Fetched MCP deployment.", {
-        deployment: await ctx.api.apiJSON("GET", `/api/mcp-deployments/${encodeURIComponent(deployment_id)}`)
-      });
-    } catch (e) {
-      return fail(String(e));
-    }
-  });
-  server.registerTool("yaaif_mcp_deployment_logs", {
-    description: "Fetch MCP deployment logs.",
-    inputSchema: { deployment_id: external_exports.string(), tail: external_exports.number().optional() }
-  }, async ({ deployment_id, tail }) => {
-    const params = new URLSearchParams();
-    if (tail) params.set("tail", String(tail));
-    const path2 = `/api/mcp-deployments/${encodeURIComponent(deployment_id)}/logs${params.size ? `?${params}` : ""}`;
-    try {
-      return ok("Fetched MCP deployment logs.", { logs: await ctx.api.apiJSON("GET", path2) });
     } catch (e) {
       return fail(String(e));
     }
@@ -25353,7 +25878,7 @@ function registerMcp(server, ctx) {
       name: args.name,
       description: args.description ?? "",
       endpoint: args.endpoint,
-      transport_type: args.transport_type || "HTTP",
+      transport_type: args.transport_type || "STREAMABLE_HTTP",
       remote_tool_name: args.remote_tool_name || args.name,
       enabled: args.enabled ?? true,
       timeout_seconds: args.timeout_seconds ?? 60,
@@ -25435,22 +25960,8 @@ function registerMcp(server, ctx) {
       return fail(String(e));
     }
   });
-  server.registerTool("yaaif_mcp_deployments_list", {
-    description: "List MCP deployments (api-server / deployment-service).",
-    inputSchema: { q: external_exports.string().optional(), limit: external_exports.number().optional() }
-  }, async ({ q, limit }) => {
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (limit) params.set("limit", String(limit));
-    const path2 = `/api/mcp-deployments${params.size ? `?${params}` : ""}`;
-    try {
-      return ok("Listed MCP deployments.", { result: await ctx.api.apiJSON("GET", path2) });
-    } catch (e) {
-      return fail(String(e));
-    }
-  });
   server.registerTool("yaaif_catalog_overview", {
-    description: "Read-only snapshot of the current tenant: agents, skills, MCP tools/servers/deployments, ambient agents/workflows (paginated summaries).",
+    description: "Read-only snapshot of the current tenant: agents, skills, MCP tools/servers/deployments, API keys, deployment settings status, ambient agents/workflows (paginated summaries).",
     inputSchema: {
       q: external_exports.string().optional(),
       limit: external_exports.number().optional()
@@ -25475,6 +25986,8 @@ function registerMcp(server, ctx) {
       load("mcp_tools", () => ctx.api.agentJSON("GET", `/api/mcp-tools${qs}`)),
       load("mcp_servers", () => ctx.api.agentJSON("GET", `/api/mcp-tools/servers${qs}`)),
       load("mcp_deployments", () => ctx.api.apiJSON("GET", `/api/mcp-deployments${qs}`)),
+      load("api_keys", () => ctx.api.apiJSON("GET", "/api/mcp-platform-keys")),
+      load("deployment_settings_status", () => ctx.api.apiJSON("GET", "/api/deployment-settings/status")),
       load("ambient_agents", () => ctx.api.agentJSON("GET", `/api/ambient/agents${qs}`)),
       load("ambient_workflows", () => ctx.api.agentJSON("GET", `/api/ambient/workflows${qs}`)),
       load("local_tools", () => ctx.api.agentJSON("GET", "/api/local-tools"))

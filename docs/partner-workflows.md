@@ -8,7 +8,7 @@ Partners do **not** need the yaaif-platform monorepo.
 2. Incident triage: `/yaaif-ops` (read-only session/ambient/desktop analysis)
 3. Multi-capability use cases: `/yaaif-plan` (propose → approve → execute; verify `local_tool_names`)
 4. Or step-by-step:
-   - MCP tools (`/yaaif-new-mcp`) — deploy or link
+   - MCP tools (`/yaaif-new-mcp`) — settings preflight → deploy compose or kubernetes_gitops (or link); mint/bind API keys when the MCP calls platform APIs
    - Ambient workflow (`/yaaif-new-workflow`) when automation is required
    - Discover platform tools (`/yaaif-platform-tools`) before inventing skill `tools:`
    - Chat skill (`/yaaif-new-skill`) — prefer lifecycle locals + `yaaif_skill_tools_check`
