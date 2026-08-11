@@ -21667,29 +21667,149 @@ defineLazyProperty(apps, "browserPrivate", () => "browserPrivate");
 var open_default = open;
 
 // src/client/tls.ts
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { execFileSync as execFileSync2 } from "node:child_process";
 import tls from "node:tls";
 var material = {};
+var resolveInfo = {
+  ca_file: null,
+  ca_source: "none",
+  local_dev_hosts: false,
+  mkcert_candidates: []
+};
 function readOptional(path2) {
   const p = (path2 || "").trim();
   if (!p) return void 0;
   return readFileSync(p, "utf8");
 }
+function resolvedPath(raw) {
+  const v = (raw ?? "").trim();
+  if (!v || /^\$\{[A-Z0-9_]+\}$/.test(v)) return "";
+  return v;
+}
+function hostFromUrl(raw) {
+  try {
+    return new URL(raw).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+function configUsesLocalDevHosts(cfg) {
+  const hosts = [
+    cfg.apiBaseUrl,
+    cfg.agentBaseUrl,
+    cfg.controlPlaneBaseUrl,
+    cfg.approvalBaseUrl,
+    cfg.oidcAuthority
+  ].map(hostFromUrl);
+  return hosts.some((h) => h === "yaaif.local" || h.endsWith(".yaaif.local"));
+}
+function mkcertCarootFromCli() {
+  try {
+    const out = execFileSync2("mkcert", ["-CAROOT"], {
+      encoding: "utf8",
+      timeout: 1500,
+      stdio: ["ignore", "pipe", "ignore"]
+    }).trim();
+    return out || void 0;
+  } catch {
+    return void 0;
+  }
+}
+function discoverMkcertCaCandidates(env2 = process.env) {
+  const out = [];
+  const push = (p) => {
+    const path2 = (p || "").trim();
+    if (!path2 || out.includes(path2)) return;
+    out.push(path2);
+  };
+  const caroot = (env2.CAROOT || "").trim();
+  if (caroot) push(join(caroot, "rootCA.pem"));
+  const home = homedir();
+  push(join(home, "Library", "Application Support", "mkcert", "rootCA.pem"));
+  push(join(home, ".local", "share", "mkcert", "rootCA.pem"));
+  const cliRoot = mkcertCarootFromCli();
+  if (cliRoot) push(join(cliRoot, "rootCA.pem"));
+  return out.filter((p) => existsSync(p));
+}
+function resolveCaFile(cfg, env2 = process.env) {
+  const localDev = configUsesLocalDevHosts(cfg);
+  const candidates = localDev ? discoverMkcertCaCandidates(env2) : [];
+  const explicit = resolvedPath(cfg.extraCaFile) || resolvedPath(env2.YAAIF_EXTRA_CA_FILE) || resolvedPath(env2.NODE_EXTRA_CA_CERTS);
+  if (explicit) {
+    return {
+      ca_file: explicit,
+      ca_source: "explicit",
+      local_dev_hosts: localDev,
+      mkcert_candidates: candidates
+    };
+  }
+  if (localDev && candidates.length > 0) {
+    return {
+      ca_file: candidates[0],
+      ca_source: "mkcert-auto",
+      local_dev_hosts: localDev,
+      mkcert_candidates: candidates
+    };
+  }
+  return {
+    ca_file: null,
+    ca_source: "none",
+    local_dev_hosts: localDev,
+    mkcert_candidates: candidates
+  };
+}
 function installTlsDispatcher(cfg) {
-  const caFile = cfg.extraCaFile || process.env.YAAIF_EXTRA_CA_FILE || process.env.NODE_EXTRA_CA_CERTS;
-  const certFile = cfg.clientCertFile || process.env.YAAIF_CLIENT_CERT_FILE;
-  const keyFile = cfg.clientKeyFile || process.env.YAAIF_CLIENT_KEY_FILE;
-  const caPem = readOptional(caFile);
+  const resolved = resolveCaFile(cfg);
+  resolveInfo = resolved;
+  const certFile = resolvedPath(cfg.clientCertFile) || resolvedPath(process.env.YAAIF_CLIENT_CERT_FILE);
+  const keyFile = resolvedPath(cfg.clientKeyFile) || resolvedPath(process.env.YAAIF_CLIENT_KEY_FILE);
+  const caPems = [];
+  const loadedFiles = [];
+  const pushFile = (path2, required2) => {
+    const p = resolvedPath(path2);
+    if (!p || loadedFiles.includes(p)) return;
+    try {
+      const pem = readOptional(p);
+      if (!pem?.trim()) return;
+      if (!caPems.includes(pem)) caPems.push(pem);
+      loadedFiles.push(p);
+    } catch (err) {
+      if (required2) throw err;
+    }
+  };
+  pushFile(resolved.ca_file || void 0, resolved.ca_source === "explicit");
+  if (resolved.local_dev_hosts) {
+    const mkcertPaths = resolved.mkcert_candidates.length ? resolved.mkcert_candidates : discoverMkcertCaCandidates();
+    for (const candidate of mkcertPaths) {
+      pushFile(candidate, false);
+    }
+    if (!resolveInfo.ca_file && loadedFiles[0]) {
+      resolveInfo = {
+        ...resolveInfo,
+        ca_file: loadedFiles[0],
+        ca_source: resolveInfo.ca_source === "explicit" ? "explicit" : "mkcert-auto",
+        mkcert_candidates: mkcertPaths
+      };
+    } else if (resolved.mkcert_candidates.length === 0 && mkcertPaths.length > 0) {
+      resolveInfo = { ...resolveInfo, mkcert_candidates: mkcertPaths };
+    }
+  }
+  if (!caPems.length && resolved.ca_source === "mkcert-auto") {
+    resolveInfo = { ...resolved, ca_file: null, ca_source: "none" };
+  }
   const certPem = readOptional(certFile);
   const keyPem = readOptional(keyFile);
-  if (!caPem && !certPem) {
+  if (!caPems.length && !certPem) {
     material = {};
     return null;
   }
   material = {
-    ca: caPem ? [...tls.rootCertificates, caPem] : void 0,
+    ca: caPems.length ? [...tls.rootCertificates, ...caPems] : void 0,
     cert: certPem && keyPem ? certPem : void 0,
     key: certPem && keyPem ? keyPem : void 0
   };
@@ -21697,6 +21817,9 @@ function installTlsDispatcher(cfg) {
 }
 function getTlsMaterial() {
   return material;
+}
+function getTlsResolveInfo() {
+  return resolveInfo;
 }
 async function yaaifFetch(input, init = {}) {
   const url = typeof input === "string" ? new URL(input) : input;
@@ -22053,11 +22176,11 @@ var AuthClient = class {
 
 // src/auth/store.ts
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join as join2 } from "node:path";
 var SessionStore = class {
   path;
   constructor(cursorHome) {
-    this.path = join(cursorHome, "session.json");
+    this.path = join2(cursorHome, "session.json");
   }
   async ensureHome(cursorHome) {
     await mkdir(cursorHome, { recursive: true, mode: 448 });
@@ -22147,8 +22270,8 @@ var ApiClient = class {
 };
 
 // src/config.ts
-import { homedir } from "node:os";
-import { join as join2 } from "node:path";
+import { homedir as homedir2 } from "node:os";
+import { join as join3 } from "node:path";
 function trimSlash(v) {
   return v.replace(/\/+$/, "");
 }
@@ -22171,7 +22294,7 @@ function loadConfig() {
     ),
     approvalBaseUrl: trimSlash(env("YAAIF_APPROVAL_BASE_URL", `${apiBaseUrl}/approval-service`)),
     defaultTenantId: env("YAAIF_DEFAULT_TENANT_ID"),
-    cursorHome: env("YAAIF_CURSOR_HOME", join2(homedir(), ".yaaif", "cursor")),
+    cursorHome: env("YAAIF_CURSOR_HOME", join3(homedir2(), ".yaaif", "cursor")),
     activeProfileId: env("YAAIF_PLATFORM_PROFILE", ""),
     extraCaFile: env("YAAIF_EXTRA_CA_FILE", env("NODE_EXTRA_CA_CERTS")),
     clientCertFile: env("YAAIF_CLIENT_CERT_FILE"),
@@ -22181,15 +22304,15 @@ function loadConfig() {
 
 // src/lib/planExecution.ts
 import { mkdir as mkdir2, readFile as readFile2, rename as rename2, readdir, writeFile as writeFile2 } from "node:fs/promises";
-import { join as join3 } from "node:path";
+import { join as join4 } from "node:path";
 var PlanExecutionStore = class {
   dir;
   constructor(cursorHome) {
-    this.dir = join3(cursorHome, "plan-executions");
+    this.dir = join4(cursorHome, "plan-executions");
   }
   file(slug) {
     const safe = slug.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-");
-    return join3(this.dir, `${safe}.json`);
+    return join4(this.dir, `${safe}.json`);
   }
   async save(exec) {
     await mkdir2(this.dir, { recursive: true, mode: 448 });
@@ -22245,11 +22368,11 @@ var PlanExecutionStore = class {
 
 // src/lib/telemetry.ts
 import { mkdir as mkdir3, readFile as readFile3, rename as rename3, writeFile as writeFile3 } from "node:fs/promises";
-import { join as join4 } from "node:path";
+import { join as join5 } from "node:path";
 var TelemetryStore = class {
   constructor(cursorHome) {
     this.cursorHome = cursorHome;
-    this.path = join4(cursorHome, "telemetry.json");
+    this.path = join5(cursorHome, "telemetry.json");
   }
   path;
   async load() {
@@ -22304,7 +22427,7 @@ function redactSecrets(value) {
 
 // src/platform/profiles.ts
 import { mkdir as mkdir4, readFile as readFile4, rename as rename4, writeFile as writeFile4 } from "node:fs/promises";
-import { join as join5 } from "node:path";
+import { join as join6 } from "node:path";
 function trimSlash2(v) {
   return v.replace(/\/+$/, "");
 }
@@ -22349,8 +22472,8 @@ var BUILTIN_PROFILES = [
 var ProfileStore = class {
   constructor(cursorHome) {
     this.cursorHome = cursorHome;
-    this.customPath = join5(cursorHome, "profiles.json");
-    this.activePath = join5(cursorHome, "active-profile.json");
+    this.customPath = join6(cursorHome, "profiles.json");
+    this.activePath = join6(cursorHome, "active-profile.json");
   }
   customPath;
   activePath;
@@ -23036,19 +23159,42 @@ function registerAuthTools(server, ctx) {
     }
   }, async ({ login_if_needed, tenant, profile_id }) => {
     try {
+      let profile_auto_switched;
       if (profile_id) {
         const profile = await ctx.profiles.get(profile_id);
         if (!profile) return fail(`unknown profile: ${profile_id}`);
         await ctx.profiles.setActive(profile.id);
         applyProfileToConfig(ctx.cfg, profile);
+        installTlsDispatcher(ctx.cfg);
+      } else {
+        const sessPeek = await ctx.auth.session();
+        const sessionAuth = (sessPeek?.oidc_authority || "").replace(/\/+$/, "").toLowerCase();
+        const wantsComOidc = sessionAuth.includes("platform.yaaif.com");
+        const activeIsLocalAll = (ctx.cfg.activeProfileId || inferProfileId(ctx.cfg)) === "local";
+        if (wantsComOidc && activeIsLocalAll) {
+          const hybrid = await ctx.profiles.get("local-hybrid");
+          if (hybrid) {
+            await ctx.profiles.setActive(hybrid.id);
+            applyProfileToConfig(ctx.cfg, hybrid);
+            installTlsDispatcher(ctx.cfg);
+            profile_auto_switched = "local-hybrid";
+          }
+        } else {
+          installTlsDispatcher(ctx.cfg);
+        }
       }
       let oidc;
       try {
         oidc = await probeOidc(ctx.cfg.oidcAuthority);
       } catch (e) {
+        const tls2 = getTlsResolveInfo();
         return fail(`OIDC discovery failed for ${ctx.cfg.oidcAuthority}: ${String(e)}`, {
           profile_id: ctx.cfg.activeProfileId,
-          oidc_authority: ctx.cfg.oidcAuthority
+          oidc_authority: ctx.cfg.oidcAuthority,
+          ca_source: tls2.ca_source,
+          ca_file: tls2.ca_file,
+          hint: tls2.local_dev_hosts && tls2.ca_source === "none" ? "Install mkcert (mkcert -install) or set YAAIF_EXTRA_CA_FILE to rootCA.pem" : void 0,
+          profile_auto_switched
         });
       }
       let sess = await ctx.auth.session();
@@ -23103,8 +23249,10 @@ function registerAuthTools(server, ctx) {
           logged_in,
           auth_url,
           profile_id: ctx.cfg.activeProfileId || inferProfileId(ctx.cfg),
+          profile_auto_switched,
           oidc_authority: ctx.cfg.oidcAuthority,
           api_base: ctx.cfg.apiBaseUrl,
+          ca_source: getTlsResolveInfo().ca_source,
           email: set.session.email,
           tenant_id: set.tenant.tenant_id,
           tenant_name: set.tenant.tenant_name,
@@ -23121,6 +23269,7 @@ function registerAuthTools(server, ctx) {
           logged_in,
           auth_url,
           profile_id: ctx.cfg.activeProfileId || inferProfileId(ctx.cfg),
+          profile_auto_switched,
           oidc_authority: ctx.cfg.oidcAuthority,
           tenants: auto.tenants,
           last_tenant_id: auto.last_tenant_id,
@@ -23134,8 +23283,10 @@ function registerAuthTools(server, ctx) {
         logged_in,
         auth_url,
         profile_id: ctx.cfg.activeProfileId || inferProfileId(ctx.cfg),
+        profile_auto_switched,
         oidc_authority: ctx.cfg.oidcAuthority,
         api_base: ctx.cfg.apiBaseUrl,
+        ca_source: getTlsResolveInfo().ca_source,
         email: auto.session?.email,
         tenant_id: auto.tenant_id,
         tenant_name: auto.tenant_name,
@@ -23780,6 +23931,19 @@ function registerOpsTools(server, ctx) {
 }
 
 // src/tools/registerDoctor.ts
+function tlsHint(err, tls2 = getTlsResolveInfo()) {
+  const msg = String(err);
+  if (!/certificate|UNABLE_TO_VERIFY|unable to verify|self[- ]signed|CERT_HAS_EXPIRED/i.test(msg)) {
+    return void 0;
+  }
+  if (tls2.local_dev_hosts && tls2.ca_source === "none") {
+    return "Local *.yaaif.local TLS failed and no mkcert CA was found. Install mkcert (mkcert -install) or set YAAIF_EXTRA_CA_FILE / profile extra_ca_file to the Traefik/mkcert rootCA.pem.";
+  }
+  if (tls2.local_dev_hosts && tls2.ca_source === "mkcert-auto") {
+    return `Local TLS still failing with auto mkcert CA (${tls2.ca_file}). Confirm Traefik certs were issued by that CA, or set YAAIF_EXTRA_CA_FILE explicitly.`;
+  }
+  return "TLS verify failed. Set YAAIF_EXTRA_CA_FILE (or profile extra_ca_file) to your corporate/Traefik CA PEM.";
+}
 function registerDoctorTools(server, ctx) {
   server.registerTool("yaaif_doctor", {
     description: "End-to-end health narrative: profile, OIDC discovery, TLS, auth, tenant, catalog ping. Prefer before create/plan work.",
@@ -23791,13 +23955,30 @@ function registerDoctorTools(server, ctx) {
     const add = (name, okFlag, detail) => {
       checks.push({ name, ok: okFlag, detail: detail !== void 0 ? redactSecrets(detail) : void 0 });
     };
+    installTlsDispatcher(ctx.cfg);
+    const tls2 = getTlsResolveInfo();
     add("profile", true, {
       profile_id: ctx.cfg.activeProfileId || inferProfileId(ctx.cfg),
       oidc_authority: ctx.cfg.oidcAuthority,
       api_base: ctx.cfg.apiBaseUrl,
       extra_ca_file: ctx.cfg.extraCaFile || null,
+      ca_file_resolved: tls2.ca_file,
+      ca_source: tls2.ca_source,
+      local_dev_hosts: tls2.local_dev_hosts,
       client_cert_file: ctx.cfg.clientCertFile || null
     });
+    if (tls2.local_dev_hosts && tls2.ca_source === "none") {
+      add("tls_ca", false, {
+        hint: "No mkcert/extra CA for *.yaaif.local. Run mkcert -install or set YAAIF_EXTRA_CA_FILE to rootCA.pem.",
+        mkcert_candidates: tls2.mkcert_candidates
+      });
+    } else {
+      add("tls_ca", true, {
+        ca_source: tls2.ca_source,
+        ca_file: tls2.ca_file,
+        mkcert_candidates: tls2.mkcert_candidates
+      });
+    }
     try {
       const url = `${ctx.cfg.oidcAuthority}/.well-known/openid-configuration`;
       const res = await yaaifFetch(url);
@@ -23808,7 +23989,7 @@ function registerDoctorTools(server, ctx) {
         device_authorization_endpoint: doc?.device_authorization_endpoint ?? null
       });
     } catch (e) {
-      add("oidc_discovery", false, String(e));
+      add("oidc_discovery", false, { error: String(e), hint: tlsHint(e, tls2) });
     }
     for (const [name, base] of [
       ["api_health", ctx.cfg.apiBaseUrl],
@@ -23820,7 +24001,7 @@ function registerDoctorTools(server, ctx) {
         const status = (await yaaifFetch(`${base}/health`)).status;
         add(name, status >= 200 && status < 500, { status, base });
       } catch (e) {
-        add(name, false, { base, error: String(e) });
+        add(name, false, { base, error: String(e), hint: tlsHint(e, tls2) });
       }
     }
     let sessionReady = false;
@@ -25254,10 +25435,10 @@ function isK8s(method) {
 }
 
 // src/tools/register.ts
-import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
+import { cpSync, existsSync as existsSync2, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join as join6 } from "node:path";
-import { execFileSync as execFileSync2 } from "node:child_process";
+import { join as join7 } from "node:path";
+import { execFileSync as execFileSync3 } from "node:child_process";
 function registerAllTools(server, ctx) {
   registerAuthTools(server, ctx);
   registerSkills(server, ctx);
@@ -25820,22 +26001,22 @@ function registerMcp(server, ctx) {
       }
       const lang = args.language || "go";
       const workspace = args.workspace_root || process.cwd();
-      const parent = args.target_dir ? args.target_dir.startsWith("/") ? args.target_dir : join6(workspace, args.target_dir) : join6(workspace, "mcp-servers");
-      const dest = join6(parent, `${name}-mcp-service`);
-      if (existsSync(dest)) return fail(`destination already exists: ${dest}`);
+      const parent = args.target_dir ? args.target_dir.startsWith("/") ? args.target_dir : join7(workspace, args.target_dir) : join7(workspace, "mcp-servers");
+      const dest = join7(parent, `${name}-mcp-service`);
+      if (existsSync2(dest)) return fail(`destination already exists: ${dest}`);
       const repo = lang === "python" ? "https://github.com/yaaif/mcp-server-templates-py.git" : "https://github.com/yaaif/mcp-server-templates-go.git";
-      const tmp = mkdtempSync(join6(tmpdir(), "yaaif-mcp-scaffold-"));
+      const tmp = mkdtempSync(join7(tmpdir(), "yaaif-mcp-scaffold-"));
       try {
-        execFileSync2("git", ["clone", "--depth", "1", repo, tmp], { stdio: "inherit" });
+        execFileSync3("git", ["clone", "--depth", "1", repo, tmp], { stdio: "inherit" });
         cpSync(tmp, dest, {
           recursive: true,
-          filter: (src) => !src.includes(`${join6(tmp, ".git")}`) && !src.endsWith("/.git")
+          filter: (src) => !src.includes(`${join7(tmp, ".git")}`) && !src.endsWith("/.git")
         });
-        rmSync(join6(dest, ".git"), { recursive: true, force: true });
-        const renameScript = join6(dest, "scripts", "rename-service.sh");
-        if (existsSync(renameScript)) {
+        rmSync(join7(dest, ".git"), { recursive: true, force: true });
+        const renameScript = join7(dest, "scripts", "rename-service.sh");
+        if (existsSync2(renameScript)) {
           try {
-            execFileSync2("bash", [renameScript, name], { cwd: dest, stdio: "inherit" });
+            execFileSync3("bash", [renameScript, name], { cwd: dest, stdio: "inherit" });
           } catch {
           }
         }
@@ -26004,11 +26185,10 @@ async function main() {
   await store.ensureHome(cfg.cursorHome);
   const profiles = new ProfileStore(cfg.cursorHome);
   await profiles.ensureHome();
-  if (cfg.activeProfileId) {
+  const fromFile = await applyActiveProfile(cfg, profiles);
+  if (!fromFile && cfg.activeProfileId) {
     const p = await profiles.get(cfg.activeProfileId);
     if (p) applyProfileToConfig(cfg, p);
-  } else {
-    await applyActiveProfile(cfg, profiles);
   }
   installTlsDispatcher(cfg);
   const auth = new AuthClient(cfg, store);
@@ -26017,7 +26197,7 @@ async function main() {
   const telemetry = new TelemetryStore(cfg.cursorHome);
   const server = new McpServer({
     name: "yaaif-cursor",
-    version: "0.9.0"
+    version: "0.12.2"
   });
   registerAllTools(server, { cfg, auth, api, profiles, plans, telemetry });
   const transport = new StdioServerTransport();

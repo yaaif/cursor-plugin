@@ -1,7 +1,7 @@
 {
   "name": "yaaif",
   "description": "Authenticate to YAA\\F, plan use cases, and create skills, MCP deployments, and ambient workflows from Cursor.",
-  "version": "0.12.0",
+  "version": "1.0.0",
   "author": {
     "name": "YAA\\F / BeezLabs",
     "email": "support@yaaif.com"
@@ -27,7 +27,11 @@
         "title": "Platform profile",
         "description": "Named profile: hosted | local-hybrid | local | custom id (overrides URL defaults when set)",
         "default": "hosted",
-        "enum": ["hosted", "local-hybrid", "local"]
+        "enum": [
+          "hosted",
+          "local-hybrid",
+          "local"
+        ]
       },
       "YAAIF_OIDC_AUTHORITY": {
         "type": "string",
@@ -69,6 +73,21 @@
         "title": "OIDC client ID",
         "description": "Public Keycloak client (default yaaif-cursor)",
         "default": "yaaif-cursor"
+      },
+      "YAAIF_EXTRA_CA_FILE": {
+        "type": "string",
+        "title": "Extra CA PEM file",
+        "description": "Optional absolute path to Traefik/mkcert/corporate root CA PEM (local *.yaaif.local). Auto-discovered for local profiles when unset."
+      },
+      "YAAIF_CLIENT_CERT_FILE": {
+        "type": "string",
+        "title": "Client cert PEM (mTLS)",
+        "description": "Optional absolute path to client certificate PEM for mTLS"
+      },
+      "YAAIF_CLIENT_KEY_FILE": {
+        "type": "string",
+        "title": "Client key PEM (mTLS)",
+        "description": "Optional absolute path to client private key PEM for mTLS"
       }
     },
     "required": [

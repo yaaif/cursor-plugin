@@ -4,6 +4,7 @@
 
 | Version | Supported |
 |---------|-----------|
+| `1.0.x` | Yes |
 | `0.6.x` | Yes |
 | `0.5.x` | Yes |
 | `< 0.5` | Best-effort |

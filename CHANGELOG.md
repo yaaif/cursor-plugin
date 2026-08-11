@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.0
+
+- Align plugin major version with YAA\F platform 1.0.0
+
+## 0.12.2
+
+- TLS: for `local` / `local-hybrid`, always merge mkcert `rootCA.pem` even when `YAAIF_EXTRA_CA_FILE` / `NODE_EXTRA_CA_CERTS` is set
+- Startup: prefer `~/.yaaif/cursor/active-profile.json` (`yaaif_platform_use`) over Cursor plugin var `YAAIF_PLATFORM_PROFILE` (defaults to `hosted`)
+- Plugin vars: pass through `YAAIF_EXTRA_CA_FILE` / client mTLS cert+key
+- Fix: ignore unexpanded `${YAAIF_*}` placeholders so missing client cert vars do not crash MCP startup
+
+## 0.12.1
+
+- TLS: auto-discover mkcert `rootCA.pem` for `local` / `local-hybrid` (`*.yaaif.local`) so Node trusts Traefik without manual `YAAIF_EXTRA_CA_FILE`
+- Doctor: `tls_ca` check + `ca_source` / `ca_file_resolved`; clearer hints on certificate verify failures
+- `yaaif_ensure_session`: reinstall TLS after profile apply; auto-switch `local` → `local-hybrid` when the saved session issuer is `platform.yaaif.com`
+
 ## 0.12.0
 
 - MCP deployments: full lifecycle for compose + kubernetes_gitops (`update` / `redeploy` / `stop` / `delete`)

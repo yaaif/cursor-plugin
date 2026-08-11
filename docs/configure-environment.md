@@ -50,7 +50,16 @@ Ensure Keycloak has client `yaaif-cursor` (realm import or `ensure-yaaif-cursor-
 
 ## TLS / corporate CA / mTLS
 
-Local Traefik and enterprise proxies often need an extra CA:
+Local Traefik (`*.yaaif.local`) is usually issued by **mkcert**. Node does **not** use the macOS/Linux system trust store, so even after `mkcert -install` the Cursor MCP bridge must load `rootCA.pem` explicitly.
+
+For `local` / `local-hybrid` profiles the bridge **auto-discovers** the mkcert CA from (first match wins):
+
+1. `$CAROOT/rootCA.pem`
+2. `~/Library/Application Support/mkcert/rootCA.pem` (macOS)
+3. `~/.local/share/mkcert/rootCA.pem` (Linux)
+4. `mkcert -CAROOT` / `rootCA.pem`
+
+`yaaif_doctor` reports `ca_source: mkcert-auto` when this works. Override anytime with:
 
 ```bash
 export YAAIF_EXTRA_CA_FILE=/path/to/corp-or-traefik-ca.pem
@@ -61,8 +70,11 @@ export YAAIF_CLIENT_KEY_FILE=/path/to/client.key.pem
 
 Or set `extra_ca_file` / `client_cert_file` / `client_key_file` on a custom profile via `yaaif_platform_save`. The bridge applies these to HTTPS requests at startup (and after `yaaif_platform_use`).
 
-`NODE_EXTRA_CA_CERTS` is also honored when `YAAIF_EXTRA_CA_FILE` is unset.
+On local profiles the bridge **also merges** the mkcert CA when an explicit/`NODE_EXTRA_CA_CERTS` bundle is set, so a corporate CA cannot shadow Traefik trust.
 
+`NODE_EXTRA_CA_CERTS` is also honored when `YAAIF_EXTRA_CA_FILE` is unset (and is reported as `ca_source: explicit`; mkcert is still merged for `*.yaaif.local`).
+
+**Profile precedence:** `yaaif_platform_use` writes `~/.yaaif/cursor/active-profile.json` and that file wins over the Cursor plugin variable `YAAIF_PLATFORM_PROFILE` (which defaults to `hosted`). After switching to `local-hybrid`, reload/restart the YAA\F MCP so the new binary + profile apply.
 ## Export for shells / Cursor variables
 
 After `yaaif_platform_use`, call `yaaif_platform_export` for ready-to-paste `export …` lines and a Cursor plugin variables JSON map.
