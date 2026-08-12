@@ -24,7 +24,12 @@ Task Progress:
 5. Confirm with `yaaif_whoami`.
 6. If `local_tools` fails: ensure agent-service exposes `/api/local-tools` and
    the session has `agent.skills.read` (restart agent-service after upgrade).
+7. If `local_tools_files` / `local_tools_files_smoke` / `file_artifacts_api` / `file_registry*` fail: upgrade
+   agent-service for ADK artifacts (`load_artifacts`, `/api/files/artifacts/versions`,
+   registry lifecycle). Reload the YAA\F MCP after rebuilding the plugin.
 
 ## Done when
 
-`yaaif_doctor` returns `ready: true` with all checks ok (including `local_tools`).
+`yaaif_doctor` returns `ready: true` with all checks ok (including `local_tools`,
+`local_tools_files`, `local_tools_files_smoke`, and file registry/artifacts when the
+platform supports them).

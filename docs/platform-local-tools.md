@@ -16,7 +16,22 @@ Query params on list: `family`, `q`, `limit`, `offset`, `names_only=true`.
 - `yaaif_local_tools_list` / `yaaif_local_tool_get` / `yaaif_local_tool_call`
 - `yaaif_dev_session_ensure` — auto-picks default skills agent when omitted
 - `yaaif_skill_tools_check` — verify frontmatter tools against local + MCP catalogs
-- Aliases: `yaaif_skill_validate_module`, `yaaif_skill_develop`, `yaaif_skill_guided_draft`, `yaaif_skill_update_module_files`, `yaaif_skill_edit_section`, `yaaif_list_ambient_workflows`, `yaaif_trigger_ambient_workflow`, `yaaif_files_list`, …
+- Aliases: `yaaif_skill_validate_module`, `yaaif_skill_develop`, `yaaif_skill_guided_draft`, `yaaif_skill_update_module_files`, `yaaif_skill_edit_section`, `yaaif_list_ambient_workflows`, `yaaif_trigger_ambient_workflow`, `yaaif_files_list`, `yaaif_load_artifacts`, `yaaif_file_load_context`, …
+
+## File / artifact HTTP helpers
+
+ADK-style artifact names + versions (beyond local tools):
+
+| Tool | Backend |
+|------|---------|
+| `yaaif_session_files_list` | `GET /api/files` (`latest_only` dedupes by artifact name) |
+| `yaaif_file_artifact_versions` | `GET /api/files/artifacts/versions` |
+| `yaaif_file_artifact_delete` | `DELETE /api/files/artifacts` (`confirm=true`) |
+| `yaaif_file_get_extracted` | `GET /api/files/extracted` (`file_id` or artifact name + optional `version`) |
+
+Doctor checks: `local_tools_files`, `local_tools_files_smoke`, `file_registry` / `file_registry_storage`, `file_artifacts_api`.
+
+See also [file-artifacts.md](file-artifacts.md).
 
 Skill: `yaaif-platform-tools` / command `/yaaif-platform-tools`.
 

@@ -23930,6 +23930,47 @@ function registerOpsTools(server, ctx) {
   });
 }
 
+// src/lib/devSession.ts
+async function persistDevSession(ctx, result) {
+  await ctx.auth.patchSession({
+    dev_session_id: result.session_id,
+    dev_agent_id: result.agent_id
+  });
+}
+async function resolveDevSessionId(ctx, explicit) {
+  if (explicit?.trim()) return explicit.trim();
+  const sess = await ctx.auth.session();
+  return sess?.dev_session_id?.trim() || void 0;
+}
+async function resolveDevAgentId(ctx, explicit) {
+  if (explicit?.trim()) return explicit.trim();
+  const sess = await ctx.auth.session();
+  return sess?.dev_agent_id?.trim() || void 0;
+}
+async function ensureDevSession(ctx, opts = {}) {
+  if (!opts.force_new) {
+    const existing = await resolveDevSessionId(ctx, opts.session_id);
+    if (existing) {
+      const agentId = await resolveDevAgentId(ctx, opts.agent_id) || "";
+      return { session_id: existing, agent_id: agentId, reused: true };
+    }
+  }
+  const result = await ctx.api.agentJSON("POST", "/api/local-tools/dev-session", {
+    session_id: opts.session_id || void 0,
+    agent_id: opts.agent_id || void 0
+  });
+  const sessionId = String(result.session_id || "").trim();
+  if (!sessionId) {
+    throw new Error("dev-session response missing session_id");
+  }
+  await persistDevSession(ctx, result);
+  return {
+    session_id: sessionId,
+    agent_id: String(result.agent_id || opts.agent_id || "").trim(),
+    reused: false
+  };
+}
+
 // src/tools/registerDoctor.ts
 function tlsHint(err, tls2 = getTlsResolveInfo()) {
   const msg = String(err);
@@ -24055,6 +24096,23 @@ function registerDoctorTools(server, ctx) {
         void ctx.telemetry.increment("doctor_local_tools_fail");
       }
       try {
+        const filesTools = await ctx.api.agentJSON("GET", "/api/local-tools?family=files&names_only=true");
+        const names = Array.isArray(filesTools.names) ? filesTools.names.map((n) => String(n).trim().toLowerCase()).filter(Boolean) : (filesTools.items ?? []).map((i) => String(i.name ?? "").trim().toLowerCase()).filter(Boolean);
+        const required2 = ["files_list", "file_load_context", "load_artifacts"];
+        const missing = required2.filter((n) => !names.includes(n));
+        const okFiles = missing.length === 0;
+        add("local_tools_files", okFiles, {
+          count: filesTools.count ?? names.length,
+          names,
+          missing,
+          hint: okFiles ? void 0 : "Upgrade agent-service so files family includes load_artifacts (ADK artifact helper)."
+        });
+        void ctx.telemetry.increment(okFiles ? "doctor_local_tools_files_ok" : "doctor_local_tools_files_fail");
+      } catch (e) {
+        add("local_tools_files", false, String(e));
+        void ctx.telemetry.increment("doctor_local_tools_files_fail");
+      }
+      try {
         const smoke = await ctx.api.agentJSON(
           "POST",
           "/api/local-tools/list_ambient_workflows/call",
@@ -24068,6 +24126,39 @@ function registerDoctorTools(server, ctx) {
         void ctx.telemetry.increment("doctor_local_tools_smoke_fail");
       }
       try {
+        const ensured = await ensureDevSession(ctx);
+        const [listRes, artifactsRes] = await Promise.all([
+          ctx.api.agentJSON("POST", "/api/local-tools/files_list/call", {
+            arguments: { scope: "session", limit: 5 },
+            session_id: ensured.session_id,
+            agent_id: ensured.agent_id || void 0,
+            resolve_workspace: false
+          }),
+          ctx.api.agentJSON("POST", "/api/local-tools/load_artifacts/call", {
+            arguments: {},
+            session_id: ensured.session_id,
+            agent_id: ensured.agent_id || void 0,
+            resolve_workspace: false
+          })
+        ]);
+        const okFilesSmoke = listRes?.is_error !== true && artifactsRes?.is_error !== true;
+        add("local_tools_files_smoke", okFilesSmoke, {
+          session_id: ensured.session_id,
+          reused: ensured.reused,
+          files_list: listRes,
+          load_artifacts: artifactsRes
+        });
+        void ctx.telemetry.increment(
+          okFilesSmoke ? "doctor_local_tools_files_smoke_ok" : "doctor_local_tools_files_smoke_fail"
+        );
+      } catch (e) {
+        add("local_tools_files_smoke", false, {
+          error: String(e).slice(0, 240),
+          hint: "Ensure agent-service local-tools files family + /api/local-tools/dev-session work for this user"
+        });
+        void ctx.telemetry.increment("doctor_local_tools_files_smoke_fail");
+      }
+      try {
         const lifecycle = await ctx.api.agentJSON("GET", "/api/file-attachments/registry-lifecycle");
         const ready = Boolean(lifecycle?.readiness?.ready ?? lifecycle?.readiness?.record_sink_wired);
         add("file_registry", ready, {
@@ -24075,6 +24166,22 @@ function registerDoctorTools(server, ctx) {
           readiness: lifecycle?.readiness
         });
         void ctx.telemetry.increment(ready ? "doctor_file_registry_ok" : "doctor_file_registry_fail");
+        const storage = lifecycle?.storage;
+        const pluginOk = Boolean(storage?.plugin_ok);
+        const remote = Boolean(storage?.remote);
+        const pingOk = Boolean(storage?.ping_ok);
+        const storageOk = !remote || pluginOk && pingOk;
+        add("file_registry_storage", storageOk, {
+          storage: storage ?? null,
+          plugin_ok: pluginOk,
+          remote,
+          ping_ok: pingOk,
+          ping_error: storage?.ping_error,
+          backend: storage?.backend
+        });
+        void ctx.telemetry.increment(
+          storageOk ? "doctor_file_registry_storage_ok" : "doctor_file_registry_storage_fail"
+        );
       } catch (e) {
         const msg = String(e);
         const authDenied = /\b403\b/.test(msg);
@@ -24083,6 +24190,26 @@ function registerDoctorTools(server, ctx) {
           hint: authDenied ? "Route exists; grant agent LLM models read for registry lifecycle" : "Ensure agent-service exposes GET /api/file-attachments/registry-lifecycle"
         });
         void ctx.telemetry.increment(authDenied ? "doctor_file_registry_ok" : "doctor_file_registry_fail");
+        add("file_registry_storage", authDenied, {
+          error: msg.slice(0, 240),
+          hint: authDenied ? "Route exists; grant agent LLM models read for registry lifecycle storage" : "Ensure agent-service exposes GET /api/file-attachments/registry-lifecycle with storage"
+        });
+        void ctx.telemetry.increment(
+          authDenied ? "doctor_file_registry_storage_ok" : "doctor_file_registry_storage_fail"
+        );
+      }
+      try {
+        await ctx.api.agentJSON("GET", "/api/files/artifacts/versions");
+        add("file_artifacts_api", true, { note: "unexpected 200 without artifact_name" });
+        void ctx.telemetry.increment("doctor_file_artifacts_api_ok");
+      } catch (e) {
+        const msg = String(e);
+        const routeOk = /\b400\b/.test(msg) || /artifact_name is required/i.test(msg) || /\b403\b/.test(msg);
+        add("file_artifacts_api", routeOk, {
+          error: msg.slice(0, 240),
+          hint: routeOk && /\b403\b/.test(msg) ? "Route exists; grant chat/files read permission" : routeOk ? void 0 : "Ensure agent-service exposes GET /api/files/artifacts/versions"
+        });
+        void ctx.telemetry.increment(routeOk ? "doctor_file_artifacts_api_ok" : "doctor_file_artifacts_api_fail");
       }
       try {
         await ctx.api.agentJSON("GET", "/api/ops/correlate");
@@ -24229,22 +24356,6 @@ var MUTATING_ACK_TOOLS = /* @__PURE__ */ new Set([
   "ambient_approval_delete",
   "session_state_delete"
 ]);
-async function persistDevSession(ctx, result) {
-  await ctx.auth.patchSession({
-    dev_session_id: result.session_id,
-    dev_agent_id: result.agent_id
-  });
-}
-async function resolveDevSessionId(ctx, explicit) {
-  if (explicit?.trim()) return explicit.trim();
-  const sess = await ctx.auth.session();
-  return sess?.dev_session_id?.trim() || void 0;
-}
-async function resolveDevAgentId(ctx, explicit) {
-  if (explicit?.trim()) return explicit.trim();
-  const sess = await ctx.auth.session();
-  return sess?.dev_agent_id?.trim() || void 0;
-}
 async function callLocal(ctx, localName, args, opts = {}) {
   const sessionId = await resolveDevSessionId(ctx, opts.session_id);
   const agentId = await resolveDevAgentId(ctx, opts.agent_id);
@@ -24352,23 +24463,11 @@ function registerLocalTools(server, ctx) {
     }
   }, async ({ session_id, agent_id, force_new }) => {
     try {
-      if (!force_new) {
-        const existing = await resolveDevSessionId(ctx, session_id);
-        if (existing) {
-          const sess = await ctx.auth.session();
-          return ok("Reusing Cursor dev session.", {
-            session_id: existing,
-            agent_id: agent_id || sess?.dev_agent_id || "",
-            reused: true
-          });
-        }
-      }
-      const result = await ctx.api.agentJSON("POST", "/api/local-tools/dev-session", {
-        session_id: session_id || void 0,
-        agent_id: agent_id || void 0
-      });
-      await persistDevSession(ctx, result);
-      return ok("Created Cursor dev session.", { ...result, reused: false });
+      const result = await ensureDevSession(ctx, { session_id, agent_id, force_new });
+      return ok(
+        result.reused ? "Reusing Cursor dev session." : "Created Cursor dev session.",
+        result
+      );
     } catch (e) {
       return fail(String(e));
     }
@@ -24439,8 +24538,143 @@ function registerLocalTools(server, ctx) {
   alias("yaaif_skill_edit_section", "skill_edit_section", "Edit a SKILL.md section via skill_edit_section.");
   alias("yaaif_list_ambient_workflows", "list_ambient_workflows", "List ambient workflows via platform local tool.");
   alias("yaaif_trigger_ambient_workflow", "trigger_ambient_workflow", "Trigger an ambient workflow via platform local tool.");
-  alias("yaaif_files_list", "files_list", "List ingested files for the Cursor/dev session. Call yaaif_dev_session_ensure first.");
-  alias("yaaif_file_load_context", "file_load_context", "Load extracted file text via file_load_context.");
+  alias(
+    "yaaif_files_list",
+    "files_list",
+    "List ingested files for the Cursor/dev session (includes artifact_name/version when present). Call yaaif_dev_session_ensure first."
+  );
+  alias(
+    "yaaif_files_search",
+    "files_search",
+    "Search uploaded files by name/preview via files_search. Call yaaif_dev_session_ensure first."
+  );
+  alias(
+    "yaaif_file_load_context",
+    "file_load_context",
+    "Load extracted text via file_load_context. file_id may be a durable UUID or ADK artifact filename; pass version for a historical revision."
+  );
+  alias(
+    "yaaif_load_artifacts",
+    "load_artifacts",
+    "ADK-aligned artifact helper: list session/user: artifacts or load by filename/file_id (optional version). Prefer for human-readable names."
+  );
+  alias(
+    "yaaif_file_share_link",
+    "file_share_link",
+    "Mint a short-lived signed URL via file_share_link (when share links are enabled on the platform)."
+  );
+  alias(
+    "yaaif_generate_file",
+    "generate_file",
+    "Create a downloadable file in the session via generate_file (returns file_id / artifact_name)."
+  );
+}
+
+// src/tools/registerFiles.ts
+function registerFileTools(server, ctx) {
+  server.registerTool("yaaif_file_artifact_versions", {
+    description: "List every version of an ADK artifact name (session-scoped or user:-prefixed). Uses GET /api/files/artifacts/versions. Pass session_id (or call yaaif_dev_session_ensure first).",
+    inputSchema: {
+      artifact_name: external_exports.string(),
+      session_id: external_exports.string().optional()
+    }
+  }, async ({ artifact_name, session_id }) => {
+    const name = artifact_name.trim();
+    if (!name) return fail("artifact_name is required");
+    const sessionId = await resolveDevSessionId(ctx, session_id);
+    if (!sessionId) {
+      return fail("session_id required \u2014 call yaaif_dev_session_ensure or pass session_id");
+    }
+    const params = new URLSearchParams({
+      artifact_name: name,
+      session_id: sessionId
+    });
+    try {
+      const result = await ctx.api.agentJSON("GET", `/api/files/artifacts/versions?${params}`);
+      return ok(`Listed versions for ${name}.`, { result, session_id: sessionId });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_file_artifact_delete", {
+    description: "Delete one artifact version (?version=N) or every version (omit version) via DELETE /api/files/artifacts. Requires confirm=true.",
+    inputSchema: {
+      artifact_name: external_exports.string(),
+      session_id: external_exports.string().optional(),
+      version: external_exports.number().optional(),
+      confirm: external_exports.boolean()
+    }
+  }, async ({ artifact_name, session_id, version: version2, confirm }) => {
+    if (!confirm) return fail("Set confirm=true to delete artifact versions.");
+    const name = artifact_name.trim();
+    if (!name) return fail("artifact_name is required");
+    const sessionId = await resolveDevSessionId(ctx, session_id);
+    if (!sessionId) {
+      return fail("session_id required \u2014 call yaaif_dev_session_ensure or pass session_id");
+    }
+    const params = new URLSearchParams({
+      artifact_name: name,
+      session_id: sessionId
+    });
+    if (version2 !== void 0 && version2 > 0) params.set("version", String(version2));
+    try {
+      const result = await ctx.api.agentJSON("DELETE", `/api/files/artifacts?${params}`);
+      return ok(`Deleted artifact ${name}${version2 && version2 > 0 ? ` v${version2}` : " (all versions)"}.`, {
+        result,
+        session_id: sessionId
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_file_get_extracted", {
+    description: "Fetch extracted text via GET /api/files/extracted. file_id may be a durable UUID or an ADK artifact filename; version selects a historical revision (omit/0 = latest).",
+    inputSchema: {
+      file_id: external_exports.string(),
+      session_id: external_exports.string().optional(),
+      version: external_exports.number().optional()
+    }
+  }, async ({ file_id, session_id, version: version2 }) => {
+    const ref = file_id.trim();
+    if (!ref) return fail("file_id is required");
+    const sessionId = await resolveDevSessionId(ctx, session_id);
+    if (!sessionId) {
+      return fail("session_id required \u2014 call yaaif_dev_session_ensure or pass session_id");
+    }
+    const params = new URLSearchParams({
+      file_id: ref,
+      session_id: sessionId
+    });
+    if (version2 !== void 0 && version2 > 0) params.set("version", String(version2));
+    try {
+      const result = await ctx.api.agentJSON("GET", `/api/files/extracted?${params}`);
+      return ok(`Fetched extracted content for ${ref}.`, { result, session_id: sessionId });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_session_files_list", {
+    description: "List session files via GET /api/files (REST). Set latest_only=true to return one row per artifact_name (latest version). Prefer yaaif_files_list / yaaif_load_artifacts for skill authoring.",
+    inputSchema: {
+      session_id: external_exports.string().optional(),
+      latest_only: external_exports.boolean().optional(),
+      limit: external_exports.number().optional()
+    }
+  }, async ({ session_id, latest_only, limit }) => {
+    const sessionId = await resolveDevSessionId(ctx, session_id);
+    if (!sessionId) {
+      return fail("session_id required \u2014 call yaaif_dev_session_ensure or pass session_id");
+    }
+    const params = new URLSearchParams({ session_id: sessionId });
+    if (latest_only) params.set("latest_only", "true");
+    if (limit && limit > 0) params.set("limit", String(limit));
+    try {
+      const result = await ctx.api.agentJSON("GET", `/api/files?${params}`);
+      return ok("Listed session files.", { result, session_id: sessionId, latest_only: Boolean(latest_only) });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
 }
 
 // src/lib/opsShape.ts
@@ -25452,6 +25686,7 @@ function registerAllTools(server, ctx) {
   registerOpsTools(server, ctx);
   registerOpsSupportTools(server, ctx);
   registerLocalTools(server, ctx);
+  registerFileTools(server, ctx);
   registerDoctorTools(server, ctx);
 }
 function registerSkills(server, ctx) {
@@ -26142,7 +26377,7 @@ function registerMcp(server, ctx) {
     }
   });
   server.registerTool("yaaif_catalog_overview", {
-    description: "Read-only snapshot of the current tenant: agents, skills, MCP tools/servers/deployments, API keys, deployment settings status, ambient agents/workflows (paginated summaries).",
+    description: "Read-only snapshot of the current tenant: agents, skills, MCP tools/servers/deployments, API keys, deployment settings status, ambient agents/workflows, local tools, file registry lifecycle (paginated summaries).",
     inputSchema: {
       q: external_exports.string().optional(),
       limit: external_exports.number().optional()
@@ -26171,7 +26406,8 @@ function registerMcp(server, ctx) {
       load("deployment_settings_status", () => ctx.api.apiJSON("GET", "/api/deployment-settings/status")),
       load("ambient_agents", () => ctx.api.agentJSON("GET", `/api/ambient/agents${qs}`)),
       load("ambient_workflows", () => ctx.api.agentJSON("GET", `/api/ambient/workflows${qs}`)),
-      load("local_tools", () => ctx.api.agentJSON("GET", "/api/local-tools"))
+      load("local_tools", () => ctx.api.agentJSON("GET", "/api/local-tools")),
+      load("file_registry_lifecycle", () => ctx.api.agentJSON("GET", "/api/file-attachments/registry-lifecycle"))
     ]);
     if (Object.keys(errors).length) out.errors = errors;
     return ok("Catalog overview loaded.", out);

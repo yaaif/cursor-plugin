@@ -40,15 +40,17 @@ Read [references/local-tools.md](references/local-tools.md) for family ↔ REST 
   - `skill_validate_module` / `yaaif_skill_validate_module`
   - `skill_tool_link_manager` + `skill_mcp_tool_catalog`
 - Always run `yaaif_skill_tools_check` before enabling/mapping a new skill
-- File-aware skills: call `yaaif_dev_session_ensure` then `files_list` / `file_load_context` / `file_share_link`
+- File-aware skills: call `yaaif_dev_session_ensure` then `files_list` / `load_artifacts` / `file_load_context` / `file_share_link`
+  (artifact names + optional `version`; use `yaaif_file_artifact_versions` for version history)
 - High-impact tools (`skill_archive_or_delete`, `skill_repo_ops`, `skill_release_manager`, …) require `allow_mutating: true` on `yaaif_local_tool_call`
 
 ## Invoke
 
 Generic: `yaaif_local_tool_call` with `name`, `arguments`, optional `session_id` / `agent_id` / `branch`.
 
-Aliases: `yaaif_skill_validate_module`, `yaaif_skill_develop`, `yaaif_skill_guided_draft`, `yaaif_skill_mcp_tool_catalog`, `yaaif_files_list`, `yaaif_file_load_context`.
+Aliases: `yaaif_skill_validate_module`, `yaaif_skill_develop`, `yaaif_skill_guided_draft`, `yaaif_skill_mcp_tool_catalog`, `yaaif_files_list`, `yaaif_files_search`, `yaaif_file_load_context`, `yaaif_load_artifacts`, `yaaif_file_share_link`, `yaaif_generate_file`.
 
+See [docs/file-artifacts.md](../../docs/file-artifacts.md).
 ## Hand-off
 
 Report the local tool names confirmed for the skill, any validation result, and whether a dev session was created.

@@ -41,7 +41,8 @@ Task Progress:
    3. `resource=events` / `messages` for session timeline/transcript
    4. `resource=desktop_logs` / `ambient_logs` when those run IDs are linked
 5. Optionally: `yaaif_ops_session_get`, `yaaif_ops_ambient_run_get`, `yaaif_ops_desktop_run_get`.
-6. Report using the escalation template below.
+6. **File / extraction issues:** when the incident involves uploads or generated files, note `file_id` **and** `artifact_name` / `artifact_version` from session context or `yaaif_session_files_list` / `yaaif_file_artifact_versions` (read-only). Prefer artifact name + version when the same filename was overwritten across turns. Do not delete artifacts from ops flow.
+7. Report using the escalation template below.
 
 ## Escalation template
 
@@ -51,6 +52,7 @@ Task Progress:
 - Links: session=… ambient=… desktop=… harness=… request=…
 - Status: session=… ambient=… desktop=… harness=…
 - diagnostics_version: …
+- Files (if relevant): file_id=… artifact_name=… version=…
 
 ## Top failures
 1. `<code>` — <summary>
@@ -63,6 +65,7 @@ Task Progress:
 ## Evidence pulled
 - analyze: yes
 - telemetry: insights|flow_events|logs|none
+- files: versions|list|none
 - partial_errors: …
 ```
 

@@ -55,7 +55,7 @@ When local tools are unavailable (doctor `local_tools` failed):
 
 ## File-aware skills
 
-Call `yaaif_dev_session_ensure`, then exercise `yaaif_files_list` / `yaaif_file_load_context` while drafting. Put `files_list` / `file_load_context` (and `file_share_link` if needed) in frontmatter.
+Call `yaaif_dev_session_ensure`, then exercise `yaaif_files_list` / `yaaif_load_artifacts` / `yaaif_file_load_context` while drafting. Put `files_list` / `load_artifacts` / `file_load_context` (and `file_share_link` if needed) in frontmatter. Files may be referenced by durable `file_id` or ADK artifact name (+ optional `version`).
 
 ## Hand-off
 

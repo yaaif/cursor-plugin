@@ -7,7 +7,7 @@ Built-in tools live in agent-service (`internal/mcp/local_tools.go`). Cursor dis
 | Family | Examples | Session? |
 |--------|----------|----------|
 | skill | `skill_create_guided_draft`, `skill_get_module_bundle`, `skill_update_module_files`, `skill_validate_module`, `skill_develop`, `skill_edit_section`, `skill_search`, `skill_mcp_tool_catalog`, `skill_tool_link_manager`, `skill_mapping_manager` | No (workspace resolved server-side) |
-| files | `files_list`, `files_search`, `file_load_context`, `file_share_link`, `generate_file` | Yes — use `yaaif_dev_session_ensure` |
+| files | `files_list`, `files_search`, `file_load_context`, `load_artifacts`, `file_share_link`, `generate_file` | Yes — use `yaaif_dev_session_ensure` |
 | ambient | `list_ambient_workflows`, `trigger_ambient_workflow`, `ambient_approval_*` | No |
 | approval | `yaaif_approval_inbox_*`, `yaaif_approval_task_*` | No |
 | state | `session_state_*`, `workflow_state_*` | Yes |
@@ -44,4 +44,15 @@ tools:
   - trigger_ambient_workflow
   - files_list
   - file_load_context
+  - load_artifacts
 ```
+
+## ADK artifacts
+
+Ingested files are addressable by durable `file_id` **or** ADK artifact name
+(`report.pdf`, `user:profile.json`) with an incrementing `artifact_version`.
+
+- Prefer `load_artifacts` when referring to files by human-readable name/version
+- `file_load_context` accepts the same dual reference (`file_id` or filename + optional `version`)
+- Cursor REST helpers (outside local tools): `yaaif_file_artifact_versions`,
+  `yaaif_file_get_extracted`, `yaaif_session_files_list` (`latest_only=true`)

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.0
+
+- File/artifact ops for YAA\F ADK-style artifacts:
+  - Local aliases: `yaaif_load_artifacts`, `yaaif_files_search`, `yaaif_file_share_link`, `yaaif_generate_file`; richer `yaaif_files_list` / `yaaif_file_load_context` (artifact name + version)
+  - REST helpers: `yaaif_file_artifact_versions`, `yaaif_file_artifact_delete`, `yaaif_file_get_extracted`, `yaaif_session_files_list` (`latest_only`)
+  - Shared `devSession` helper for local-tools + file REST + doctor smoke
+  - Doctor: `local_tools_files`, `local_tools_files_smoke`, `file_artifacts_api` (+ existing `file_registry*`)
+  - `yaaif_catalog_overview` includes `file_registry_lifecycle`
+  - Docs: `docs/file-artifacts.md`; ops skill notes artifact_name/version triage
+- Docs/skills updated for file-aware authoring with `load_artifacts`
+
 ## 1.0.0
 
 - Align plugin major version with YAA\F platform 1.0.0

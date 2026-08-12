@@ -50,8 +50,8 @@ Task Progress:
   or purposes clearly overlap
 - For chat→ambient skills, resolve real local names via
   `list_ambient_workflows` / `trigger_ambient_workflow` (local tools), not invented aliases
-- For file-heavy use cases, include `files_list` / `file_load_context` (and note
-  `yaaif_dev_session_ensure` for Cursor authoring)
+- For file-heavy use cases, include `files_list` / `load_artifacts` / `file_load_context` (and note
+  `yaaif_dev_session_ensure` for Cursor authoring; artifact name + version dual identity)
 
 ### 2. Capture intent
 

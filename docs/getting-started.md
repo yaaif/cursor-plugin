@@ -9,4 +9,4 @@
 4. In Agent: run `/yaaif-login` (uses `yaaif_ensure_session`). For local Traefik, switch with `yaaif_platform_use` → `local-hybrid` first.
 5. For a full use case (chat + ambient + desktop), run `/yaaif-plan`, approve the plan, then let it execute. For a single artifact, use `/yaaif-new-skill` or `/yaaif-new-workflow`.
 
-Smoke checklist: [install-and-smoke.md](install-and-smoke.md).
+Smoke checklist: [install-and-smoke.md](install-and-smoke.md). File/artifact authoring: [file-artifacts.md](file-artifacts.md).
