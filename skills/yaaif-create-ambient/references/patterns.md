@@ -4,6 +4,7 @@
 |---------|------|--------|
 | Linear | Single automated path | One graph |
 | Linear + approval | HITL gate | Graph with `approval` nodes + published `approval_strategy_id` |
+| Linear + HOTL | Inform without blocking | Graph with `hotl` nodes + published `approval_strategy_id` (same strategy channels as approval; run does **not** pause) |
 | Branching | Multi-route | `switch` / `if` |
 | Recon / resolve | Batch detect then clearance | Often two graphs |
 | Chat-triggered | Chat starts graph | Graph + chat skill with trigger tools |
