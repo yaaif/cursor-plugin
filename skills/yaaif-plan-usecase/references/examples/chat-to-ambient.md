@@ -27,8 +27,8 @@ Chat collects invoice id, then triggers an ambient clearance graph with a financ
 
 - MCP: create/link invoice tools if missing
 - Agents: chat (skills) + workflow
-- Ambient: Linear + approval (chat-triggered)
-- Approval strategy: create WORKFLOW_PAUSE, publish, wire approval_strategy_id
+- Ambient: Linear + approval (chat-triggered). Step-only graph: ACTION (`tool_call` / `action`) → optional BRANCH (`if`) → HUMAN (`approval`) → TERMINAL (`do_nothing`). Do not author watcher / evaluator / guardian / orchestrator / recorder.
+- Approval strategy: create WORKFLOW_PAUSE, publish, wire approval_strategy_id on the `approval` node
 - Skills: orchestration chat skill with list_ambient_workflows + trigger_ambient_workflow
 
 ## 6. Install order

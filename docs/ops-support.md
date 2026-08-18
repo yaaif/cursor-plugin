@@ -10,13 +10,29 @@ Cursor tools and skill for incident triage across LLM sessions, ambient runs, de
 | `yaaif_ops_correlate` | Linked IDs / statuses |
 | `yaaif_ops_telemetry` | **Unified** telemetry drill-down: `messages` \| `events` \| `flow_events` \| `insights` \| `desktop_logs` \| `ambient_logs` |
 | `yaaif_ops_session_get` | Session metrics + failures |
-| `yaaif_ops_ambient_run_get` | Ambient run + diagnostics |
+| `yaaif_ops_ambient_run_get` | Ambient run + diagnostics + `run_path` (coverage/path/current step/canvas URL) |
 | `yaaif_ops_desktop_run_get` / `_list` | Desktop run detail / list |
 | Aliases | `yaaif_ops_session_messages`, `_events`, `_flow_events`, `_session_insights`, `_desktop_worker_logs`, `_ambient_worker_logs` → prefer `yaaif_ops_telemetry` |
 
-Shared shaping knobs on ops tools: `summary_only`, `max_chars`, `max_items` (keeps agent context small).
+Shared shaping knobs on ops tools: `summary_only`, `max_chars`, `max_items` (keeps agent context small). `summary_only` keeps `run_path` when present.
 
-Skill: `yaaif-ops-support` / command `/yaaif-ops`.
+When an ambient run is linked, `yaaif_ops_analyze` and `yaaif_ops_ambient_run_get` attach a compact `run_path` (plugin-side, from the run graph + state blocks):
+
+- `counts`: executed / running / waiting / failed / pending
+- `coverage`: `reached/total` (never “86% complete”)
+- `path`: `executed/reached`
+- `current_step`: fail, then running, then waiting
+- `tone`: run status wins over leftover wait blocks
+- `admin_ui_canvas_url`: `/admin/workflow-runs?ar_run=…&ar_run_tab=workflow-canvas` (+ `ar_canvas_info` when current step is known)
+
+Skill: `yaaif-ops-support` / command `/yaaif-ops`. Escalation should include:
+
+```markdown
+- Coverage: 8/20 reached
+- Path: 7/8 finished on this path
+- Current step: <id> WAITING|FAILED|RUNNING
+- Canvas: <admin_ui_canvas_url>
+```
 
 Telemetry tools call **agent-service** `GET /api/ops/*` only. That proxies api-server → telemetry-service. Do **not** configure a direct telemetry-service URL in the plugin.
 

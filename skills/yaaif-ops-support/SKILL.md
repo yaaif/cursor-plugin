@@ -41,6 +41,7 @@ Task Progress:
    3. `resource=events` / `messages` for session timeline/transcript
    4. `resource=desktop_logs` / `ambient_logs` when those run IDs are linked
 5. Optionally: `yaaif_ops_session_get`, `yaaif_ops_ambient_run_get`, `yaaif_ops_desktop_run_get`.
+   When an ambient run is linked, read `run_path` (Coverage / Path / current step / canvas URL). Do **not** say a leftover wait block is still waiting if run status is completed/running — run status wins. Never report fake percent-complete.
 6. **File / extraction issues:** when the incident involves uploads or generated files, note `file_id` **and** `artifact_name` / `artifact_version` from session context or `yaaif_session_files_list` / `yaaif_file_artifact_versions` (read-only). Prefer artifact name + version when the same filename was overwritten across turns. Do not delete artifacts from ops flow.
 7. Report using the escalation template below.
 
@@ -52,6 +53,10 @@ Task Progress:
 - Links: session=… ambient=… desktop=… harness=… request=…
 - Status: session=… ambient=… desktop=… harness=…
 - diagnostics_version: …
+- Coverage: 8/20 reached
+- Path: 7/8 finished on this path
+- Current step: <id> WAITING|FAILED|RUNNING
+- Canvas: <admin_ui_canvas_url>
 - Files (if relevant): file_id=… artifact_name=… version=…
 
 ## Top failures

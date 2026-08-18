@@ -28,6 +28,8 @@ Task Progress:
 
 See [references/patterns.md](references/patterns.md). Default to **Linear**.
 
+Author **step-only** graphs (`tool_call` / `action` / `if` / `approval` / `hotl` / `wait` / `do_nothing`, etc.). The designer canvas labels those as ACTION, MESSAGE, BRANCH, WAIT, HUMAN, TERMINAL. Do **not** add watcher / evaluator / guardian / orchestrator / recorder nodes — those are engine phases (settings), not canvas steps. `approval` pauses (HITL); `hotl` notifies and continues (HOTL).
+
 ## Install order
 
 1. `yaaif_agent_create` with `agent_type: "workflow"`

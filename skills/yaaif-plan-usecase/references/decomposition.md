@@ -54,6 +54,21 @@ Ambient install order (when ambient is in scope):
 | `desktop` | Desktop worker skills (+ `desktop_platforms` when SAP GUI) |
 | `ambient` | Ambient step skills (path often under `…/ambient/…`) |
 
+## Ambient graph authoring
+
+When an ambient workflow is in scope, author a **step-only** `workflow_graph` (see `yaaif-create-ambient` patterns). Canvas category labels:
+
+| Category | Types |
+|----------|--------|
+| ACTION | `tool_call`, `action`, `skill` |
+| MESSAGE | `send_email` |
+| BRANCH | `if`, `switch`, `merge` |
+| WAIT | `wait` |
+| HUMAN | `approval` (HITL, pauses), `hotl` (notifies and continues) |
+| TERMINAL | `do_nothing`, `error` |
+
+Engine phases (watcher / evaluator / guardian / orchestrator / recorder) are settings, not canvas steps. Do not put them on new graphs. Do not convert a skill-flow-only orchestrator into a `skill` node.
+
 ## Anti-patterns
 
 - Ambient graph for a one-shot chat Q&A
@@ -63,3 +78,5 @@ Ambient install order (when ambient is in scope):
 - Using `yaaif_skill_map_agents` (replace) when `yaaif_skill_map_agents_merge` is safer
 - Approval nodes without a published `approval_strategy_id`
 - Desktop skills without worker mappings when workers are known
+- Authoring watcher / evaluator / guardian / orchestrator / recorder (W→E→G→O→R) as the process
+- Converting a skill-flow-only orchestrator into a `skill` node

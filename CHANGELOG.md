@@ -2,6 +2,8 @@
 
 ## 1.1.0
 
+- Ambient authoring is step-only: create-ambient / plan decomposition teach ACTION, MESSAGE, BRANCH, WAIT, HUMAN, TERMINAL — not the W→E→G→O→R engine spine. `yaaif_ambient_workflow_create` / `_update` warn (do not fail) when `workflow_graph` is engine-spine-only.
+- Ops run-path shaping: `yaaif_ops_ambient_run_get` and `yaaif_ops_analyze` attach `run_path` (Coverage `reached/total`, Path `executed/reached`, current step, Admin UI canvas deep link). Run status wins over leftover wait blocks; never report fake percent-complete.
 - File/artifact ops for YAA\F ADK-style artifacts:
   - Local aliases: `yaaif_load_artifacts`, `yaaif_files_search`, `yaaif_file_share_link`, `yaaif_generate_file`; richer `yaaif_files_list` / `yaaif_file_load_context` (artifact name + version)
   - REST helpers: `yaaif_file_artifact_versions`, `yaaif_file_artifact_delete`, `yaaif_file_get_extracted`, `yaaif_session_files_list` (`latest_only`)
