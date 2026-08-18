@@ -21867,6 +21867,233 @@ async function yaaifFetch(input, init = {}) {
   });
 }
 
+// src/auth/callbackPage.ts
+function escapeHtml(value) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+var CURSOR_LOGO_SVG = `<svg class="ycb-cursor-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 466.73 532.09" role="img" aria-label="Cursor">
+  <path fill="currentColor" d="M457.43,125.94L244.42,2.96c-6.84-3.95-15.28-3.95-22.12,0L9.3,125.94c-5.75,3.32-9.3,9.46-9.3,16.11v247.99c0,6.65,3.55,12.79,9.3,16.11l213.01,122.98c6.84,3.95,15.28,3.95,22.12,0l213.01-122.98c5.75-3.32,9.3-9.46,9.3-16.11v-247.99c0-6.65-3.55-12.79-9.3-16.11h-.01ZM444.05,151.99l-205.63,356.16c-1.39,2.4-5.06,1.42-5.06-1.36v-233.21c0-4.66-2.49-8.97-6.53-11.31L24.87,145.67c-2.4-1.39-1.42-5.06,1.36-5.06h411.26c5.84,0,9.49,6.33,6.57,11.39h-.01Z"/>
+</svg>`;
+var LOGO_SVG = `<svg class="ycb-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="YAA\\F">
+  <defs>
+    <linearGradient id="ycb-bg" x1="132" y1="96" x2="904" y2="920" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0B4E66"/>
+      <stop offset=".52" stop-color="#0C7795"/>
+      <stop offset="1" stop-color="#0B2F5B"/>
+    </linearGradient>
+    <linearGradient id="ycb-glyph" x1="286" y1="272" x2="738" y2="742" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F8FEFF"/>
+      <stop offset="1" stop-color="#C5FAFF"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="220" fill="url(#ycb-bg)"/>
+  <circle cx="512" cy="512" r="286" fill="none" stroke="#B9F7FF" stroke-opacity=".22" stroke-width="36"/>
+  <g fill="none" stroke="url(#ycb-glyph)" stroke-width="108" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M332 320L512 496L692 320"/>
+    <path d="M512 496V704"/>
+  </g>
+  <circle cx="332" cy="320" r="34" fill="#FFB14A"/>
+  <circle cx="692" cy="320" r="34" fill="#FFC96D"/>
+  <circle cx="512" cy="704" r="34" fill="#9CF8FF"/>
+</svg>`;
+function renderLoginCallbackPage(opts) {
+  const heading = escapeHtml(opts.heading);
+  const message = escapeHtml(opts.message);
+  const returnTo = escapeHtml(opts.returnTo);
+  const isCursor = opts.returnTo === "Cursor";
+  const productChip = isCursor ? `<span class="ycb-product ycb-product-cursor">${CURSOR_LOGO_SVG}<span>Cursor</span></span>` : `<span class="ycb-product">Desktop</span>`;
+  const title = opts.ok ? "YAA\\F \xB7 Signed in" : "YAA\\F \xB7 Sign-in failed";
+  const badge = opts.ok ? "Signed in" : "Sign-in failed";
+  const icon = opts.ok ? `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.2 12.4 2.5 2.5 5.1-5.3"/></svg>` : `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>`;
+  const detail = opts.detail ? `<p class="ycb-detail">Signed in to <code>${escapeHtml(opts.detail)}</code></p>` : "";
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0C7795">
+<title>${escapeHtml(title)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ycb-fg: hsl(201 50% 17%);
+  --ycb-muted: hsl(200 25% 38%);
+  --ycb-card: hsl(0 0% 100% / 0.94);
+  --ycb-border: hsl(197 35% 82%);
+  --ycb-primary: hsl(198 82% 36%);
+  --ycb-primary-fg: hsl(180 100% 98%);
+  --ycb-ok: #0d8a5b;
+  --ycb-ok-bg: hsl(160 50% 94%);
+  --ycb-err: #b42318;
+  --ycb-err-bg: hsl(4 80% 96%);
+  --ycb-page-top: hsl(48 100% 99%);
+  --ycb-page-bottom: hsl(198 55% 97%);
+  --ycb-grid: rgba(64, 122, 148, 0.045);
+  --ycb-glow: hsl(198 82% 36% / 0.12);
+  --ycb-shadow: 0 28px 70px -40px rgba(10, 24, 36, 0.5);
+  --ycb-code-bg: hsl(198 40% 96%);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ycb-fg: hsl(210 40% 96%);
+    --ycb-muted: hsl(210 16% 70%);
+    --ycb-card: hsl(214 28% 12% / 0.94);
+    --ycb-border: hsl(214 18% 28%);
+    --ycb-primary: hsl(193 92% 55%);
+    --ycb-primary-fg: hsl(212 30% 10%);
+    --ycb-ok: #3dd68c;
+    --ycb-ok-bg: hsl(160 35% 16%);
+    --ycb-err: #f97066;
+    --ycb-err-bg: hsl(4 40% 16%);
+    --ycb-page-top: hsl(212 30% 8%);
+    --ycb-page-bottom: hsl(214 28% 10%);
+    --ycb-grid: rgba(124, 184, 208, 0.075);
+    --ycb-glow: hsl(193 92% 55% / 0.16);
+    --ycb-shadow: 0 28px 70px -36px rgba(2, 11, 15, 0.75);
+    --ycb-code-bg: hsl(214 22% 16%);
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: max(1.25rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  color: var(--ycb-fg);
+  background:
+    repeating-linear-gradient(0deg, var(--ycb-grid) 0 1px, transparent 1px 36px),
+    repeating-linear-gradient(90deg, var(--ycb-grid) 0 1px, transparent 1px 36px),
+    radial-gradient(circle at 50% 0%, var(--ycb-glow), transparent 42%),
+    linear-gradient(180deg, var(--ycb-page-top), var(--ycb-page-bottom));
+}
+.ycb-card {
+  width: min(100%, 26rem);
+  background: var(--ycb-card);
+  border: 1px solid var(--ycb-border);
+  border-radius: 1.1rem;
+  box-shadow: var(--ycb-shadow);
+  padding: 1.85rem 1.7rem 1.5rem;
+  text-align: center;
+  animation: ycb-in .35s ease;
+}
+@keyframes ycb-in {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+.ycb-brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-bottom: 1.35rem;
+}
+.ycb-brand-mark { display: flex; align-items: center; gap: .65rem; }
+.ycb-logo {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: .7rem;
+  display: block;
+}
+.ycb-wordmark {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -.02em;
+}
+.ycb-product {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--ycb-fg);
+  border: 1px solid var(--ycb-border);
+  border-radius: 999px;
+  padding: .28rem .65rem .28rem .5rem;
+}
+.ycb-cursor-logo {
+  width: 1.15rem;
+  height: 1.3rem;
+  display: block;
+  color: var(--ycb-fg);
+  flex: 0 0 auto;
+}
+.ycb-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  margin: 0 0 .85rem;
+  padding: .32rem .75rem;
+  border-radius: 999px;
+  font-size: .78rem;
+  font-weight: 600;
+}
+.ycb-ok .ycb-badge { background: var(--ycb-ok-bg); color: var(--ycb-ok); }
+.ycb-err .ycb-badge { background: var(--ycb-err-bg); color: var(--ycb-err); }
+h1 {
+  margin: 0 0 .45rem;
+  font-size: 1.5rem;
+  letter-spacing: -.03em;
+  line-height: 1.2;
+}
+.ycb-copy, .ycb-detail, .ycb-return {
+  margin: 0 0 .65rem;
+  color: var(--ycb-muted);
+  line-height: 1.5;
+  font-size: .95rem;
+}
+.ycb-return { margin-bottom: 0; }
+code {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .76rem;
+  background: var(--ycb-code-bg);
+  border: 1px solid var(--ycb-border);
+  border-radius: .4rem;
+  padding: .12rem .38rem;
+  color: var(--ycb-fg);
+  word-break: break-all;
+}
+.ycb-close {
+  margin-top: 1.2rem;
+  width: 100%;
+  appearance: none;
+  border: 0;
+  border-radius: .75rem;
+  padding: .78rem 1.1rem;
+  background: var(--ycb-primary);
+  color: var(--ycb-primary-fg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ycb-close:hover { filter: brightness(.96); }
+</style>
+</head>
+<body class="${opts.ok ? "ycb-ok" : "ycb-err"}">
+  <main class="ycb-card">
+    <div class="ycb-brand">
+      <div class="ycb-brand-mark">${LOGO_SVG}<p class="ycb-wordmark">YAA\\F</p></div>
+      ${productChip}
+    </div>
+    <div class="ycb-badge">${icon}${escapeHtml(badge)}</div>
+    <h1>${heading}</h1>
+    <p class="ycb-copy">${message}</p>
+    ${detail}
+    <p class="ycb-return">You can close this window and return to ${returnTo}.</p>
+    <button class="ycb-close" type="button" onclick="window.close()">Close window</button>
+  </main>
+</body>
+</html>`;
+}
+
 // src/auth/oidc.ts
 var ReauthRequiredError = class extends Error {
   code = "reauth_required";
@@ -21960,32 +22187,64 @@ var AuthClient = class {
           res.writeHead(404).end();
           return;
         }
+        const sendPage = (status, html) => {
+          res.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(html);
+        };
         if (url.searchParams.get("state") !== state) {
-          res.writeHead(400).end("invalid state");
+          sendPage(
+            400,
+            renderLoginCallbackPage({
+              ok: false,
+              heading: "Sign-in could not be verified",
+              message: "The sign-in response did not match this login attempt. Start login again from Cursor.",
+              returnTo: "Cursor"
+            })
+          );
           clearTimeout(timer);
           reject(new Error("invalid oauth state"));
           return;
         }
         const err = url.searchParams.get("error");
         if (err) {
-          res.writeHead(400).end(err);
+          sendPage(
+            400,
+            renderLoginCallbackPage({
+              ok: false,
+              heading: "Sign-in was not completed",
+              message: `The identity provider returned ${err}.`,
+              returnTo: "Cursor"
+            })
+          );
           clearTimeout(timer);
           reject(new Error(`oauth error: ${err}`));
           return;
         }
         const authCode = url.searchParams.get("code");
         if (!authCode) {
-          res.writeHead(400).end("missing code");
+          sendPage(
+            400,
+            renderLoginCallbackPage({
+              ok: false,
+              heading: "Sign-in was not completed",
+              message: "The authorization code was missing from the sign-in response.",
+              returnTo: "Cursor"
+            })
+          );
           clearTimeout(timer);
           reject(new Error("missing authorization code"));
           return;
         }
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(`<!doctype html><html><body style="font-family:system-ui;padding:2rem">
-<h2>YAA\\F login complete</h2>
-<p>Signed in to <code>${this.cfg.oidcAuthority}</code>.</p>
-<p>You can close this window and return to Cursor.</p>
-</body></html>`);
+        sendPage(
+          200,
+          renderLoginCallbackPage({
+            ok: true,
+            heading: "You're signed in",
+            message: "Authentication finished successfully.",
+            detail: this.cfg.oidcAuthority,
+            returnTo: "Cursor"
+          })
+        );
         clearTimeout(timer);
         resolve(authCode);
         server.close();
@@ -22620,6 +22879,82 @@ function mergeSkillIds(existing, add) {
     out.push(trimmed);
   }
   return out;
+}
+
+// src/lib/workflowGraph.ts
+var ENGINE_NODE_TYPES = /* @__PURE__ */ new Set([
+  "watcher",
+  "evaluator",
+  "guardian",
+  "orchestrator",
+  "recorder"
+]);
+var STEP_NODE_TYPES = /* @__PURE__ */ new Set([
+  "skill",
+  "action",
+  "tool_call",
+  "send_email",
+  "if",
+  "switch",
+  "merge",
+  "wait",
+  "error",
+  "approval",
+  "hotl",
+  "do_nothing"
+]);
+var ENGINE_SPINE_ONLY_WARNING = "workflow_graph is engine-spine-only (watcher/evaluator/guardian/orchestrator/recorder) with no step nodes. Author ACTION/MESSAGE/BRANCH/WAIT/HUMAN/TERMINAL steps instead; engine phases are settings, not canvas steps.";
+function graphNodes(graph) {
+  const record2 = asRecord(graph);
+  const raw = record2.nodes;
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const out = [];
+  for (const item of raw) {
+    const node = asRecord(item);
+    const id = asString(node.id);
+    const type = asString(node.type).toLowerCase();
+    if (!id && !type) {
+      continue;
+    }
+    out.push({ id, type });
+  }
+  return out;
+}
+function isEngineSpineOnlyGraph(graph) {
+  const nodes = graphNodes(graph);
+  if (nodes.length === 0) {
+    return false;
+  }
+  let hasEngine = false;
+  for (const node of nodes) {
+    if (!node.type) {
+      continue;
+    }
+    if (STEP_NODE_TYPES.has(node.type)) {
+      return false;
+    }
+    if (ENGINE_NODE_TYPES.has(node.type)) {
+      hasEngine = true;
+    }
+  }
+  return hasEngine;
+}
+function asRecord(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value;
+  }
+  return {};
+}
+function asString(value) {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return "";
 }
 
 // src/lib/profileExport.ts
@@ -24716,7 +25051,8 @@ function summarizeOpsRecord(result) {
     session_id: result.session_id,
     request_id: result.request_id,
     desktop_run_id: result.desktop_run_id,
-    ambient_run_id: result.ambient_run_id
+    ambient_run_id: result.ambient_run_id,
+    run_path: result.run_path
   };
   for (const key of ["items", "messages", "events", "logs", "timeline"]) {
     if (Array.isArray(result[key])) {
@@ -24773,6 +25109,355 @@ function safeStringify(v) {
   }
 }
 
+// src/lib/runPath.ts
+function emptyRunStepStatusCounts() {
+  return { executed: 0, running: 0, waiting: 0, failed: 0, pending: 0 };
+}
+function totalRunStepCount(counts) {
+  return counts.executed + counts.running + counts.waiting + counts.failed + counts.pending;
+}
+function reachedRunStepCount(counts) {
+  return counts.executed + counts.running + counts.waiting + counts.failed;
+}
+function normalizeRunStatus(runStatus) {
+  return runStatus.trim().toLowerCase();
+}
+function isRunActivelyWaiting(runStatus, isTimedWait = false) {
+  const status = normalizeRunStatus(runStatus);
+  if (status === "waiting" || status === "paused" || status === "awaiting_approval") {
+    return true;
+  }
+  return status === "queued" && isTimedWait;
+}
+function resolveRunNodeExecutionLabel(input) {
+  const latestStatus = (input.latestStatus ?? "").trim().toLowerCase();
+  const blockStatuses = (input.blockStatuses ?? []).map((status) => status.trim().toLowerCase());
+  if (latestStatus === "failed") {
+    return "FAILED";
+  }
+  if (latestStatus === "running" || latestStatus === "started") {
+    return "RUNNING";
+  }
+  const hasCompletedBlock = blockStatuses.some((status) => status === "completed" || status === "succeeded");
+  if (hasCompletedBlock) {
+    return "EXECUTED";
+  }
+  const isWaitingLatest = latestStatus === "waiting" || latestStatus === "queued" || latestStatus === "paused";
+  if (isWaitingLatest) {
+    if (input.runIsActivelyWaiting) {
+      return "WAITING";
+    }
+    if (input.executed) {
+      return "EXECUTED";
+    }
+    return "PENDING";
+  }
+  if (input.executed || latestStatus === "completed" || latestStatus === "succeeded") {
+    return "EXECUTED";
+  }
+  return "PENDING";
+}
+function describeRunStepMetrics(runStatus, counts, options) {
+  const status = normalizeRunStatus(runStatus);
+  const total = totalRunStepCount(counts);
+  const activelyWaiting = isRunActivelyWaiting(status, options?.isTimedWait === true);
+  if (status === "failed") {
+    return {
+      title: "Failed",
+      detail: `${counts.failed} failed \xB7 ${counts.executed} executed`,
+      tone: "failed"
+    };
+  }
+  if (status === "completed" || status === "succeeded") {
+    return {
+      title: "Completed",
+      detail: total === 1 ? "1 step executed" : `${counts.executed} steps executed`,
+      tone: "completed"
+    };
+  }
+  if (counts.failed > 0) {
+    return {
+      title: "Failed",
+      detail: `${counts.failed} failed \xB7 ${counts.executed} executed`,
+      tone: "failed"
+    };
+  }
+  if (status === "awaiting_approval") {
+    return {
+      title: "Awaiting approval",
+      detail: counts.waiting <= 1 ? "1 step is paused" : `${counts.waiting} steps need a decision`,
+      tone: "waiting"
+    };
+  }
+  if (activelyWaiting) {
+    return {
+      title: "Waiting",
+      detail: counts.waiting === 1 ? "1 step is paused" : `${Math.max(counts.waiting, 1)} steps are paused`,
+      tone: "waiting"
+    };
+  }
+  if (counts.running > 0 || status === "running") {
+    return {
+      title: "In progress",
+      detail: `${counts.executed} executed \xB7 ${counts.running} running`,
+      tone: "running"
+    };
+  }
+  if (status === "queued") {
+    return {
+      title: "Queued",
+      detail: total === 1 ? "1 step not started" : `${counts.pending || total} steps not started`,
+      tone: "idle"
+    };
+  }
+  return {
+    title: "Step states",
+    detail: `${counts.executed} executed \xB7 ${counts.pending} not started`,
+    tone: "idle"
+  };
+}
+function buildAdminUiCanvasUrl(apiBaseUrl, runId, currentStepId) {
+  const origin = adminUiOrigin(apiBaseUrl);
+  const id = runId.trim();
+  if (!origin || !id) {
+    return void 0;
+  }
+  const url = new URL("/admin/workflow-runs", origin);
+  url.searchParams.set("ar_run", id);
+  url.searchParams.set("ar_run_tab", "workflow-canvas");
+  const nodeId = (currentStepId ?? "").trim();
+  if (nodeId) {
+    url.searchParams.set("ar_canvas_info", nodeId);
+  }
+  return url.toString();
+}
+function shapeRunPath(input) {
+  const run = resolveRunRecord(input.run);
+  if (!run) {
+    return void 0;
+  }
+  const graph = run.workflow_graph ?? run.workflowGraph;
+  const nodes = pickCoverageNodes(graphNodes(graph));
+  if (nodes.length === 0 && !asString(run.status)) {
+    return void 0;
+  }
+  const blocks = collectStateBlocks(run);
+  const blocksByNode = groupBlocksByNode(blocks);
+  const runStatus = asString(run.status);
+  const runIsActivelyWaiting = isRunActivelyWaiting(runStatus, Boolean(run.is_timed_wait ?? run.isTimedWait));
+  const counts = emptyRunStepStatusCounts();
+  const labeled = [];
+  for (const node of nodes) {
+    const related = blocksByNode.get(node.id) ?? blocksByNode.get(node.id.toLowerCase()) ?? [];
+    const latest = related[related.length - 1];
+    const blockStatuses = related.map((block) => block.status);
+    const executed = related.length > 0 || blockStatuses.some((status) => status === "completed" || status === "succeeded");
+    const label = resolveRunNodeExecutionLabel({
+      latestStatus: latest?.status,
+      executed,
+      blockStatuses,
+      runIsActivelyWaiting
+    });
+    incrementCount(counts, label);
+    labeled.push({
+      node_id: node.id,
+      label,
+      sequence: latest?.sequence ?? 0,
+      createdAt: latest?.createdAt ?? 0
+    });
+  }
+  const reached = reachedRunStepCount(counts);
+  const total = totalRunStepCount(counts);
+  const metrics = describeRunStepMetrics(runStatus, counts, {
+    isTimedWait: Boolean(run.is_timed_wait ?? run.isTimedWait)
+  });
+  const current = pickCurrentStep(labeled);
+  const runId = (input.runId ?? asString(run.id)).trim();
+  const canvasUrl = input.apiBaseUrl ? buildAdminUiCanvasUrl(input.apiBaseUrl, runId, current?.node_id) : void 0;
+  const summary = {
+    counts,
+    coverage: {
+      reached,
+      total,
+      label: total === 0 ? "0/0 reached" : `${reached}/${total} reached`
+    },
+    path: {
+      executed: counts.executed,
+      reached,
+      label: reached === 0 ? "0/0 finished on this path" : `${counts.executed}/${reached} finished on this path`
+    },
+    current_step: current,
+    tone: metrics.tone,
+    title: metrics.title
+  };
+  if (canvasUrl) {
+    summary.admin_ui_canvas_url = canvasUrl;
+  }
+  return summary;
+}
+function extractAmbientRunId(result, fallback) {
+  const fromArg = (fallback ?? "").trim();
+  if (fromArg) {
+    return fromArg;
+  }
+  const record2 = asRecord(result);
+  const top = asString(record2.ambient_run_id);
+  if (top) {
+    return top;
+  }
+  const links = asRecord(record2.links);
+  const fromLinks = asString(links.ambient_run_id);
+  if (fromLinks) {
+    return fromLinks;
+  }
+  const seed = asRecord(record2.seed);
+  return asString(seed.ambient_run_id);
+}
+function resolveRunRecord(run) {
+  const record2 = asRecord(run);
+  if (Object.keys(record2).length === 0) {
+    return void 0;
+  }
+  const nested = asRecord(record2.run);
+  if (nested.workflow_graph || nested.workflowGraph || Array.isArray(nested.state_blocks)) {
+    return { ...nested, status: nested.status ?? record2.status, id: nested.id ?? record2.id };
+  }
+  if (record2.workflow_graph || record2.workflowGraph || Array.isArray(record2.state_blocks)) {
+    return record2;
+  }
+  if (asString(record2.status) || asString(nested.status)) {
+    return Object.keys(nested).length > 0 ? { ...nested, status: nested.status ?? record2.status, id: nested.id ?? record2.id } : record2;
+  }
+  return void 0;
+}
+function pickCoverageNodes(nodes) {
+  const steps = nodes.filter((node) => STEP_NODE_TYPES.has(node.type));
+  if (steps.length > 0) {
+    return steps;
+  }
+  const nonEngine = nodes.filter((node) => node.id && !ENGINE_NODE_TYPES.has(node.type));
+  if (nonEngine.length > 0) {
+    return nonEngine;
+  }
+  return nodes.filter((node) => node.id);
+}
+function collectStateBlocks(run) {
+  const raw = run.state_blocks ?? run.stateBlocks ?? run.workflow_state_blocks;
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const out = [];
+  for (const item of raw) {
+    const block = asRecord(item);
+    const nodeId = asString(block.node_id ?? block.nodeID);
+    if (!nodeId) {
+      continue;
+    }
+    out.push({
+      nodeId,
+      status: asString(block.status),
+      sequence: asNumber(block.sequence ?? block.step_seq),
+      createdAt: parseDateMs(block.created_at ?? block.createdAt)
+    });
+  }
+  out.sort((a, b) => a.sequence - b.sequence || a.createdAt - b.createdAt);
+  return out;
+}
+function groupBlocksByNode(blocks) {
+  const map = /* @__PURE__ */ new Map();
+  for (const block of blocks) {
+    const key = block.nodeId;
+    const current = map.get(key) ?? [];
+    current.push(block);
+    map.set(key, current);
+    const lower = key.toLowerCase();
+    if (lower !== key && !map.has(lower)) {
+      map.set(lower, current);
+    }
+  }
+  return map;
+}
+function incrementCount(counts, label) {
+  switch (label) {
+    case "EXECUTED":
+      counts.executed += 1;
+      break;
+    case "RUNNING":
+      counts.running += 1;
+      break;
+    case "WAITING":
+      counts.waiting += 1;
+      break;
+    case "FAILED":
+      counts.failed += 1;
+      break;
+    default:
+      counts.pending += 1;
+  }
+}
+function pickCurrentStep(labeled) {
+  const pick2 = (want) => {
+    const candidates = labeled.filter((item) => item.label === want);
+    if (candidates.length === 0) {
+      return void 0;
+    }
+    return candidates.reduce((best, item) => {
+      if (item.sequence > best.sequence) {
+        return item;
+      }
+      if (item.sequence < best.sequence) {
+        return best;
+      }
+      return item.createdAt > best.createdAt ? item : best;
+    });
+  };
+  const failed = pick2("FAILED");
+  if (failed) {
+    return { node_id: failed.node_id, label: "FAILED" };
+  }
+  const running = pick2("RUNNING");
+  if (running) {
+    return { node_id: running.node_id, label: "RUNNING" };
+  }
+  const waiting = pick2("WAITING");
+  if (waiting) {
+    return { node_id: waiting.node_id, label: "WAITING" };
+  }
+  return null;
+}
+function adminUiOrigin(apiBaseUrl) {
+  const raw = apiBaseUrl.trim();
+  if (!raw) {
+    return void 0;
+  }
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return void 0;
+  }
+}
+function asNumber(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+function parseDateMs(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  const raw = asString(value);
+  if (!raw) {
+    return 0;
+  }
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 // src/tools/registerOpsSupport.ts
 function opsQuery(params) {
   const qs = new URLSearchParams();
@@ -24787,6 +25472,33 @@ var shapeOptsSchema = {
   max_chars: external_exports.number().int().positive().optional().describe("Soft JSON size cap for the tool result"),
   max_items: external_exports.number().int().positive().optional().describe("Cap items/events/logs arrays (default 40)")
 };
+async function fetchAmbientRunDetail(ctx, runId) {
+  const id = runId.trim();
+  if (!id) {
+    return void 0;
+  }
+  try {
+    return await ctx.api.agentJSON("GET", `/api/ambient/runs/${encodeURIComponent(id)}`);
+  } catch {
+    return void 0;
+  }
+}
+async function attachRunPath(ctx, result, fallbackRunId) {
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    return result;
+  }
+  const runId = extractAmbientRunId(result, fallbackRunId);
+  const detail = await fetchAmbientRunDetail(ctx, runId);
+  const path2 = shapeRunPath({
+    run: detail ?? result,
+    apiBaseUrl: ctx.cfg.apiBaseUrl,
+    runId
+  });
+  if (!path2) {
+    return result;
+  }
+  return { ...result, run_path: path2 };
+}
 function shapedOk(summary, result, opts, defaults) {
   const merged = {
     summary_only: opts.summary_only ?? defaults?.summary_only,
@@ -24889,7 +25601,7 @@ function registerOpsSupportTools(server, ctx) {
     }
   });
   server.registerTool("yaaif_ops_analyze", {
-    description: "READ-ONLY: one-shot incident analysis \u2014 correlate IDs, rank failures, and return next_steps. Prefer this first; then yaaif_ops_telemetry for drill-down.",
+    description: "READ-ONLY: one-shot incident analysis \u2014 correlate IDs, rank failures, and return next_steps. When an ambient run is linked, also includes run_path (coverage/path/current step/canvas URL). Prefer this first; then yaaif_ops_telemetry for drill-down.",
     inputSchema: {
       session_id: external_exports.string().optional(),
       ambient_run_id: external_exports.string().optional(),
@@ -24913,7 +25625,8 @@ function registerOpsSupportTools(server, ctx) {
       })}`;
       const result = await ctx.api.agentJSON("GET", path2);
       void ctx.telemetry.increment("ops_analyze_ok");
-      return shapedOk("Analyzed ops incident.", result, args, { summary_only: true });
+      const withPath = await attachRunPath(ctx, result, args.ambient_run_id);
+      return shapedOk("Analyzed ops incident.", withPath, args, { summary_only: true });
     } catch (e) {
       void ctx.telemetry.increment("ops_analyze_fail");
       return fail(String(e));
@@ -24934,7 +25647,7 @@ function registerOpsSupportTools(server, ctx) {
     }
   });
   server.registerTool("yaaif_ops_ambient_run_get", {
-    description: "READ-ONLY: ambient workflow run detail + diagnostic failures for a run_id.",
+    description: "READ-ONLY: ambient workflow run detail + diagnostic failures for a run_id, plus run_path (coverage/path/current step/canvas URL).",
     inputSchema: { run_id: external_exports.string(), ...shapeOptsSchema }
   }, async (args) => {
     try {
@@ -24942,7 +25655,8 @@ function registerOpsSupportTools(server, ctx) {
         "GET",
         `/api/ops/ambient-runs/${encodeURIComponent(args.run_id)}`
       );
-      return shapedOk("Fetched ops ambient run analysis.", result, args, { summary_only: true });
+      const withPath = await attachRunPath(ctx, result, args.run_id);
+      return shapedOk("Fetched ops ambient run analysis.", withPath, args, { summary_only: true });
     } catch (e) {
       return fail(String(e));
     }
@@ -26094,9 +26808,10 @@ function registerAmbient(server, ctx) {
     if (args.trigger_rules) body.trigger_rules = args.trigger_rules;
     try {
       const path2 = `/api/ambient/agents/${encodeURIComponent(args.ambient_agent_id)}/workflows`;
-      return ok(`Created ambient workflow ${args.name}.`, {
-        workflow: await ctx.api.agentJSON("POST", path2, body)
-      });
+      const workflow = await ctx.api.agentJSON("POST", path2, body);
+      const warnings = isEngineSpineOnlyGraph(args.workflow_graph) ? [ENGINE_SPINE_ONLY_WARNING] : void 0;
+      const summary = warnings ? `Created ambient workflow ${args.name}. Warning: ${ENGINE_SPINE_ONLY_WARNING}` : `Created ambient workflow ${args.name}.`;
+      return ok(summary, { workflow, ...warnings ? { warnings } : {} });
     } catch (e) {
       return fail(String(e));
     }
@@ -26128,9 +26843,10 @@ function registerAmbient(server, ctx) {
     }
   });
   server.registerTool("yaaif_ambient_workflow_update", {
-    description: "Update an ambient workflow graph / metadata.",
+    description: "Update an ambient workflow graph / metadata, including ambient agent assignment.",
     inputSchema: {
       workflow_id: external_exports.string(),
+      ambient_agent_id: external_exports.string().optional(),
       name: external_exports.string().optional(),
       description: external_exports.string().optional(),
       enabled: external_exports.boolean().optional(),
@@ -26148,9 +26864,10 @@ function registerAmbient(server, ctx) {
       if (v !== void 0) body[k] = v;
     }
     try {
-      return ok("Updated ambient workflow.", {
-        workflow: await ctx.api.agentJSON("PUT", `/api/ambient/workflows/${encodeURIComponent(workflow_id)}`, body)
-      });
+      const workflow = await ctx.api.agentJSON("PUT", `/api/ambient/workflows/${encodeURIComponent(workflow_id)}`, body);
+      const warnings = args.workflow_graph !== void 0 && isEngineSpineOnlyGraph(args.workflow_graph) ? [ENGINE_SPINE_ONLY_WARNING] : void 0;
+      const summary = warnings ? `Updated ambient workflow. Warning: ${ENGINE_SPINE_ONLY_WARNING}` : "Updated ambient workflow.";
+      return ok(summary, { workflow, ...warnings ? { warnings } : {} });
     } catch (e) {
       return fail(String(e));
     }
