@@ -1,0 +1,28 @@
+{
+  "name": "@yaaif/cursor-mcp",
+  "version": "1.2.0",
+  "description": "Compatibility launcher for the YAA\\F Cursor MCP bridge.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": "YAA\\F / BeezLabs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yaaif/cursor-plugin.git",
+    "directory": "packages/cursor-mcp"
+  },
+  "bin": {
+    "yaaif-cursor-mcp": "bin/yaaif-cursor-mcp.mjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@yaaif/platform-mcp": "^1.2.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

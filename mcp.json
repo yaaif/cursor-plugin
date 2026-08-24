@@ -2,7 +2,7 @@
   "mcpServers": {
     "yaaif": {
       "command": "node",
-      "args": ["${CURSOR_PLUGIN_ROOT}/dist/yaaif-cursor-mcp.mjs"],
+      "args": ["${CURSOR_PLUGIN_ROOT}/dist/yaaif-cursor-mcp.mjs", "--client", "cursor"],
       "env": {
         "YAAIF_PLATFORM_PROFILE": "${YAAIF_PLATFORM_PROFILE}",
         "YAAIF_OIDC_AUTHORITY": "${YAAIF_OIDC_AUTHORITY}",

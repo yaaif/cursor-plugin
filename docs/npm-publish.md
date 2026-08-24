@@ -1,9 +1,9 @@
-# Publishing `@yaaif/cursor-mcp`
+# Publishing `@yaaif/platform-mcp` and the Cursor compatibility wrapper
 
 Marketplace / local installs currently run the **committed** bridge bundle:
 
 ```json
-{ "command": "node", "args": ["${CURSOR_PLUGIN_ROOT}/dist/yaaif-cursor-mcp.mjs"] }
+{ "command": "node", "args": ["${CURSOR_PLUGIN_ROOT}/dist/yaaif-cursor-mcp.mjs", "--client", "cursor"] }
 ```
 
 ## Publish checklist
@@ -24,7 +24,13 @@ Marketplace / local installs currently run the **committed** bridge bundle:
    npm publish --access public
    ```
 
-   Package version is in `packages/mcp/package.json` (currently **0.5.0**).
+   Package version is in `packages/mcp/package.json`. Publish the shared bridge
+   first, then publish the compatibility wrapper:
+
+   ```bash
+   cd ../cursor-mcp
+   npm publish --access public
+   ```
 
 3. After publish succeeds, optionally switch root `mcp.json` to npx (customers without a local bundle):
 
@@ -33,7 +39,7 @@ Marketplace / local installs currently run the **committed** bridge bundle:
   "mcpServers": {
     "yaaif": {
       "command": "npx",
-      "args": ["-y", "@yaaif/cursor-mcp@0.5.0"],
+      "args": ["-y", "@yaaif/platform-mcp@1.2.0", "--client", "cursor"],
       "env": {
         "YAAIF_PLATFORM_PROFILE": "${YAAIF_PLATFORM_PROFILE}",
         "YAAIF_OIDC_AUTHORITY": "${YAAIF_OIDC_AUTHORITY}",
@@ -49,7 +55,7 @@ Marketplace / local installs currently run the **committed** bridge bundle:
 }
 ```
 
-Keep the committed `dist/yaaif-cursor-mcp.mjs` path until npm publish is confirmed (`npm view @yaaif/cursor-mcp version`).
+Keep the committed `dist/yaaif-cursor-mcp.mjs` path until npm publish is confirmed (`npm view @yaaif/platform-mcp version`). The legacy `@yaaif/cursor-mcp` package remains a compatibility launcher.
 
 4. Submit https://github.com/yaaif/cursor-plugin to [Cursor Marketplace publish](https://cursor.com/marketplace/publish).
 

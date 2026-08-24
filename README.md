@@ -198,13 +198,13 @@ Then **Developer: Reload Window** (or restart the yaaif MCP) and run `/yaaif-doc
 MCP bridge is TypeScript (`packages/mcp`), launched via:
 
 ```json
-{ "command": "node", "args": ["packages/mcp/dist/cli.js"] }
+{ "command": "node", "args": ["packages/mcp/dist/cli.js", "--client", "cursor"] }
 ```
 
 After npm publish:
 
 ```bash
-npx -y @yaaif/cursor-mcp@1.1.0
+npx -y @yaaif/platform-mcp@1.2.0 --client cursor
 ```
 
 Requires **Node.js ≥ 20**. No Go toolchain.
