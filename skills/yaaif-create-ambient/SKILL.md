@@ -32,7 +32,33 @@ triggers. Do not create a second workflow with the same id.
 
 See [references/patterns.md](references/patterns.md). Default to **Linear**.
 
-Author **step-only** graphs (`tool_call` / `action` / `if` / `approval` / `hotl` / `wait` / `do_nothing`, etc.). The designer canvas labels those as ACTION, MESSAGE, BRANCH, WAIT, HUMAN, TERMINAL. Do **not** add watcher / evaluator / guardian / orchestrator / recorder nodes — those are engine phases (settings), not canvas steps. `approval` pauses (HITL); `hotl` notifies and continues (HOTL).
+Author **step-only** graphs (`tool_call` / `action` (Set Context) / `trigger_workflow` / `desktop_task` / `send_email` / `send_teams` / `notify` / `context_store` / `file_artifact` / `webhook_outbound` / `for_each` / `try` / `catch` / `if` / `approval` / `hotl` / `wait` / `do_nothing`, etc.). The designer canvas labels those as ACTION, MESSAGE, BRANCH, WAIT, HUMAN, TERMINAL. Do **not** add watcher / evaluator / guardian / orchestrator / recorder nodes — those are engine phases (settings), not canvas steps. `approval` pauses (HITL); `hotl` notifies and continues (HOTL).
+
+### Step selection (orchestration)
+
+| Need | Step | Notes |
+|------|------|-------|
+| Copy state only | `action` (Set Context) | Bindings into `context.*`; no external calls |
+| External API / SAP / files | `tool_call` | MCP tool + credential profile |
+| Start another ambient workflow | `trigger_workflow` | Prefer over MCP `trigger_ambient_workflow` in graphs; optional `wait_for_completion` + `fail_on_child_failure`; restrict targets with workflow `policy.allowed_child_workflow_ids` |
+| Desktop automation | `desktop_task` | Explicit `skill_id` + `dispatch_mode` |
+| Email | `send_email` | Mailbox + outbound credential |
+| Teams notify | `send_teams` | Conversation ID or binding; `continue_on_error` default true |
+| In-app user notify | `notify` | Platform user id or binding; Admin UI bell / notification bus; not Teams |
+| Trivial IF/Switch | `if` / `switch` | Use `expression` (comparator) when no decision skill needed |
+| Failure path | `error` | `fail_fast` (default) or `record_and_continue` |
+| Structured try/catch | `try` / `catch` | Retry region + catch node (optional) |
+| Context Store | `context_store` | CRUD/query/search_similar; or `tool_call` → `context_*` |
+| Files / artifacts | `file_artifact` | load/list/search/share_link; or `tool_call` → `files_*` |
+| Outbound webhook | `webhook_outbound` | HTTPS POST; `policy.allowed_webhook_host_suffixes`; optional `bearer_token_binding` / `hmac_secret_binding` |
+| Batch / loop | `for_each` | Child trigger per item; `wait_mode` (`fire_and_forget` \| `wait_for_completion`); cap via `max_iterations` + policy `max_for_each_iterations` |
+| Step retries | `retry_policy` on side-effect nodes | `tool_call`, `send_email`, `send_teams`, `notify`, `webhook_outbound`, `context_store`, `file_artifact` |
+
+**Notify vs HOTL vs Send Teams:** `notify` → in-app bell (no run pause). `hotl` → approval-strategy channels, continues without pause. `send_teams` → Microsoft Teams conversation.
+
+Tool Call workarounds remain valid for advanced context/file patterns. See monorepo `docs/operations/workflow-step-types.md` and example packs under `examples/workflow-packs/`.
+
+External HTTP stays at **Tool Call → MCP** — do not expect a raw HTTP palette step.
 
 ## Install order
 

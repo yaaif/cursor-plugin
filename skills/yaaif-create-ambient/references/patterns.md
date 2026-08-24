@@ -17,17 +17,19 @@ Use these types. The designer shows the category on the node chrome:
 
 | Category | Node types | Role |
 |----------|------------|------|
-| ACTION | `tool_call`, `action`, `skill` | Call an MCP tool, run an action, or dispatch a mapped skill |
-| MESSAGE | `send_email` | Outbound email |
+| ACTION | `tool_call`, `action`, `skill`, `trigger_workflow`, `desktop_task` | Call MCP, reshape context, dispatch child workflow or desktop skill |
+| MESSAGE | `send_email`, `send_teams`, `notify` | Outbound email, Teams, or in-app user notification |
 | BRANCH | `if`, `switch`, `merge` | Route or join paths |
 | WAIT | `wait` | Timed or signal wait |
 | HUMAN | `approval`, `hotl` | HITL pause vs HOTL notify-and-continue |
-| TERMINAL | `do_nothing`, `error` | End the path |
+| TERMINAL | `do_nothing`, `error` | End the path or record failure |
 
-HOTL vs HITL (unchanged):
+HOTL vs HITL vs Notify vs Send Teams:
 
 - `approval` (HITL) **pauses** the run until a decision.
-- `hotl` **notifies** and **continues**. Do not expect pause/resume.
+- `hotl` **notifies** via approval-strategy channels and **continues**. Do not expect pause/resume.
+- `notify` sends an **in-app** notification to a platform user (Admin UI bell). Does not pause.
+- `send_teams` sends proactive Teams text or adaptive card. Does not pause.
 
 ## Minimal linear skeleton
 
