@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- MCP bridge (`@yaaif/platform-mcp` 1.3.0): added `claude` as a third `--client` (alongside `cursor`/`codex`) for the new YAAIF Claude Code plugin — `yaaif-claude` OIDC client id, `~/.yaaif/claude` state home, generic (non-logo) callback page branding. `registerClients.test.ts` now asserts all three clients register an identical tool contract.
+- CI: fixed the `tools/list` smoke test, which was broken since the Codex client change added a required `--client` flag that the smoke test wasn't passing.
+
 - Scenarios (Agent Specs): `yaaif_agent_spec_*` create/list/get/update, plus
   `update_segment`, `sync_workflow_design`, `sync_from_objects`,
   `sync_to_objects`, `adopt`, `publish`, `processing`.
