@@ -8,6 +8,7 @@ Official Cursor plugin for **customers and partner developers** to build on [YAA
 2. Create skills and load them into the tenant catalog
 3. Scaffold / deploy MCP servers and register tools
 4. Create ambient workflows and test-trigger them
+5. Create and maintain Scenarios (Agent Specs) — including Admin UI **Open in Cursor**
 
 **Repository:** https://github.com/yaaif/cursor-plugin  
 **Marketplace name:** `yaaif`
@@ -214,7 +215,8 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 |-----------------|--------|
 | `yaaif-auth` / `/yaaif-login` | Platform profile + login + tenant |
 | `yaaif-doctor` / `/yaaif-doctor` | Connectivity / TLS / auth diagnostics |
-| `yaaif-plan-usecase` / `/yaaif-plan` | Use-case plan → approve → create agents/skills/workflows |
+| `yaaif-plan-usecase` / `/yaaif-plan` | Use-case plan → approve → create Scenario + agents/skills/workflows |
+| `yaaif-scenario` / `/yaaif-scenario` | Create or maintain a Scenario (Agent Spec); Admin UI Open in Cursor |
 | `yaaif-create-skill` / `/yaaif-new-skill` | Author + load skill (prefers platform local lifecycle tools) |
 | `yaaif-platform-tools` / `/yaaif-platform-tools` | Discover/call agent-service built-in local tools |
 | `yaaif-ops-support` / `/yaaif-ops` | Read-only incident triage (session/ambient/desktop) |
@@ -236,6 +238,7 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 | `yaaif_ops_analyze` / `yaaif_ops_correlate` / `yaaif_ops_*_get` | Read-only ops incident correlation + failures |
 | `yaaif_doctor` | Profile + OIDC + health + session + catalog + local tools + file registry/artifacts + ops_api + ops_telemetry |
 | `yaaif_plan_verify` / `yaaif_plan_dry_run` / `yaaif_plan_execution_*` | Plan verify / dry-run / resume |
+| `yaaif_agent_spec_create` / `get` / `list` / `update` / `update_segment` / `upsert_slots` / `bind` / `coverage` / `processing` / `metrics` / `sync_workflow_design` / `sync_from_objects` / `sync_to_objects` / `adopt` / `publish` | Scenarios (Agent Specs) |
 | `yaaif_platform_export` | Shell exports + Cursor variables JSON |
 | `yaaif_agent_list` / `yaaif_agent_get` / `yaaif_agent_create` / `yaaif_agent_update` | Agents |
 | `yaaif_skill_map_agents_merge` | Safe skill↔agent mapping (union) |

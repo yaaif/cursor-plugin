@@ -113,6 +113,23 @@ Show the dry-run result; wait again for execute approval if not already granted.
 
 ## Phase B — Execute (only after approval)
 
+Immediately after approval, persist a platform **Scenario** (Agent Spec) with
+`yaaif_agent_spec_create` (slug from the plan, segments from §1–§8 / §10,
+architecture slots from §4). Store `spec_id` and the returned `version` as
+`spec_version` on the local plan execution (`yaaif_plan_execution_save`). Every subsequent create tool must pass
+`spec_id` + `slot_key` so agents, skills, workflows, and MCP servers bind
+automatically. Those objects are created from the spec; later changes go
+through the spec slot (and `workflow_design` for graphs), not as parallel
+catalog edits. Use the `yaaif-scenario` skill / `yaaif_agent_spec_*` tools to
+maintain the spec. Use `yaaif_agent_spec_bind` if a reused existing entity
+needs mapping. After execute, preview catalog sync with
+`yaaif_agent_spec_sync_preview`, explicitly apply it with the current version,
+record passing evidence for every `must` requirement, refresh readiness, and
+only then publish and transition to `active`. `yaaif_plan_execution_resume`
+refreshes readiness/version and halts for conflicts or failed evidence. Later object edits in
+Cursor stay on the spec automatically; use `/yaaif-sync-scenario` to pull or
+push the full inventory.
+
 Before mutating, call `yaaif_plan_execution_save` with the ordered steps (status
 `pending`). After each successful/failed step call
 `yaaif_plan_execution_update_step`. If interrupted, call

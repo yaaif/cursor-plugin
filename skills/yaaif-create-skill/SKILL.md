@@ -1,9 +1,10 @@
 ---
 name: yaaif-create-skill
 description: >-
-  Author a YAA\F SKILL.md pack and load it into the tenant catalog via the
-  yaaif Cursor MCP bridge. Prefers platform local skill lifecycle tools when
-  available. Works without the yaaif-platform monorepo.
+  Author or maintain a YAA\F SKILL.md pack and load it into the tenant catalog
+  via the yaaif Cursor MCP bridge. Use when Admin UI Open in Cursor / Create in
+  Cursor selected a skill_id, or when creating a new skill. Prefers platform
+  local skill lifecycle tools when available.
 ---
 
 # Create and load a YAA\F skill
@@ -21,6 +22,23 @@ Task Progress:
 ## Prerequisites
 
 Run `yaaif-auth` first. Optionally `yaaif_doctor` (confirm `local_tools`).
+If the prompt includes `skill_id` from Admin UI, stay in Cursor — do not open
+Admin UI URLs. Load that skill and maintain it; do not create a second skill
+with the same id.
+
+## Maintain a selected skill
+
+When `skill_id` is present:
+
+1. `yaaif_skill_get` / `yaaif_skill_file_tree` / `yaaif_skill_read_file`
+2. Edit with `yaaif_skill_update_module_files` / `yaaif_skill_edit_section` /
+   `yaaif_skill_develop`
+3. `yaaif_skill_tools_check` then `yaaif_skill_validate_module`
+4. `yaaif_skill_map_agents_merge` if mapping changed
+5. `yaaif_skill_refresh` then `yaaif_skill_runtime_reload`
+6. If this skill is bound to a Scenario (`spec_id` in the prompt or a known
+   slot), call `yaaif_agent_spec_sync_from_objects` so the spec records the
+   change.
 
 ## Authoring
 
@@ -42,6 +60,8 @@ Read [references/frontmatter.md](references/frontmatter.md). Prefer lean chat sk
 7. Validate: `yaaif_skill_validate_module` (strict) — prefer over `yaaif_skill_validate`
 8. Map: `yaaif_skill_map_agents_merge`
 9. `yaaif_skill_refresh` then `yaaif_skill_runtime_reload`
+10. If creating under a Scenario, pass `spec_id` + `slot_key` on
+    `yaaif_skill_create`, then `yaaif_agent_spec_sync_from_objects`
 
 ### Fallback (REST only)
 

@@ -1,0 +1,17 @@
+---
+name: yaaif-scenario
+description: Create or maintain a YAA\F scenario (Agent Spec)
+---
+
+Use the `yaaif-scenario` skill. Authenticate first if needed (`yaaif-login` /
+`yaaif-auth`).
+
+If the prompt includes `spec_id`, stay in Cursor (do not open Admin UI URLs).
+Load that Scenario with `yaaif_agent_spec_get` and treat it as the selected
+system of record. Maintain segments, slots, bindings, and `workflow_design`
+through the spec. After object edits use `yaaif_agent_spec_sync_from_objects`;
+after spec design edits use `yaaif_agent_spec_sync_to_objects`.
+
+If there is no `spec_id`, list existing scenarios, reuse a match, or create one
+with `yaaif_agent_spec_create`. For a full chat + ambient + desktop use case,
+prefer `/yaaif-plan` and create the spec immediately after approval.

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Scenarios (Agent Specs): `yaaif_agent_spec_*` create/list/get/update, plus
+  `update_segment`, `sync_workflow_design`, `sync_from_objects`,
+  `sync_to_objects`, `adopt`, `publish`, `processing`.
+  Bindings default to `source=agent_spec`. Catalog object edits made through
+  the plugin are recorded back onto the spec.
+- Skill/command: `yaaif-scenario` / `/yaaif-scenario` to create or maintain a
+  selected spec (including Admin UI **Open in Cursor**).
+- Command: `/yaaif-sync-scenario` to pull the spec from live objects or push
+  spec design onto bound objects.
+
 ## 1.1.0
 
 - Ambient authoring is step-only: create-ambient / plan decomposition teach ACTION, MESSAGE, BRANCH, WAIT, HUMAN, TERMINAL — not the W→E→G→O→R engine spine. `yaaif_ambient_workflow_create` / `_update` warn (do not fail) when `workflow_graph` is engine-spine-only.

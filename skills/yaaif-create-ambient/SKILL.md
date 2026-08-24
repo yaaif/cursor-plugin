@@ -24,6 +24,10 @@ Task Progress:
 2. Domain MCP tools registered (`yaaif-create-mcp` or link)
 3. Ambient feature enabled on the deployment
 
+If Admin UI **Open in Cursor** included `workflow_id`, stay in Cursor — do not
+open Admin UI URLs. Load `yaaif_ambient_workflow_get` and update that graph /
+triggers. Do not create a second workflow with the same id.
+
 ## Patterns
 
 See [references/patterns.md](references/patterns.md). Default to **Linear**.
@@ -42,6 +46,9 @@ Author **step-only** graphs (`tool_call` / `action` / `if` / `approval` / `hotl`
    `yaaif_local_tools_list` family `ambient`)
 6. Optional smoke: `yaaif_local_tool_call` → `list_ambient_workflows`
 7. `yaaif_ambient_test_trigger` → `yaaif_ambient_runs_list`
+8. If this workflow belongs to a Scenario, pass `spec_id` + `slot_key` on
+   create/update and finish with `yaaif_agent_spec_sync_from_objects`. After
+   editing `workflow_design` on the spec, use `yaaif_agent_spec_sync_to_objects`.
 
 ## Hand-off
 
