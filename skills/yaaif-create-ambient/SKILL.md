@@ -50,8 +50,8 @@ Author **step-only** graphs (`tool_call` / `action` (Set Context) / `trigger_wor
 | Structured try/catch | `try` / `catch` | Retry region + catch node (optional) |
 | Context Store | `context_store` | CRUD/query/search_similar; or `tool_call` → `context_*` |
 | Files / artifacts | `file_artifact` | load/list/search/share_link; or `tool_call` → `files_*` |
-| Outbound webhook | `webhook_outbound` | HTTPS POST; `policy.allowed_webhook_host_suffixes`; optional `bearer_token_binding` / `hmac_secret_binding` |
-| Batch / loop | `for_each` | Child trigger per item; `wait_mode` (`fire_and_forget` \| `wait_for_completion`); cap via `max_iterations` + policy `max_for_each_iterations` |
+| Outbound webhook | `webhook_outbound` | HTTPS GET/POST/PUT/PATCH; `timeout_seconds`; optional `expected_status_codes`; response body on output (8KB cap); `policy.allowed_webhook_host_suffixes` (Policy tab); optional `credential_id` (kind `webhook-outbound`) — do not put bearer/HMAC secrets in context |
+| Batch / loop | `for_each` | `mode` `child_workflow` (default) or `sequential` (`body_node_ids`, `checkpoint_every`); `wait_mode`; `max_concurrency`; `child_wait_timeout_seconds`; `fail_on_child_failure` waits until children are terminal; cap via `max_iterations` + policy `max_for_each_iterations` |
 | Step retries | `retry_policy` on side-effect nodes | `tool_call`, `send_email`, `send_teams`, `notify`, `webhook_outbound`, `context_store`, `file_artifact` |
 
 **Notify vs HOTL vs Send Teams:** `notify` → in-app bell (no run pause). `hotl` → approval-strategy channels, continues without pause. `send_teams` → Microsoft Teams conversation.
@@ -66,7 +66,7 @@ External HTTP stays at **Tool Call → MCP** — do not expect a raw HTTP palett
 2. If Linear+approval / HITL: `yaaif_approval_strategy_create` (`publish: true`) or reuse via `yaaif_approval_strategies_list`; set `approval_strategy_id` on approval nodes
 2b. If Linear+HOTL (inform without blocking): reuse or create a published strategy; set `approval_strategy_id` on `hotl` nodes (optional `continue_on_error`, default true). Do **not** expect pause/resume — HOTL auto-closes after notify.
 3. `yaaif_ambient_agent_create` (`mode: "active"`, async on)
-4. `yaaif_ambient_workflow_create` with `workflow_graph` + `trigger_rules`
+4. `yaaif_ambient_workflow_create` with `workflow_graph` + `trigger_rules` — set workflow `policy.allowed_child_workflow_ids`, `policy.max_for_each_iterations`, and `policy.allowed_webhook_host_suffixes` in JSON or via Admin UI **Policy** tab when editing the graph
 5. Optional chat skill via `yaaif-create-skill` including exact local tools
    `list_ambient_workflows` + `trigger_ambient_workflow` (confirm via
    `yaaif_local_tools_list` family `ambient`)
