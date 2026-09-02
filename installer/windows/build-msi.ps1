@@ -28,7 +28,10 @@ if (-not $SkipStage) {
     if (-not $bash) {
         throw "build-msi.ps1: bash is required to stage the payload (Git Bash on PATH)"
     }
-    & bash $stage --os win --arch $Arch --out $payload
+    # Forward slashes; stage-payload.sh runs cygpath on Windows.
+    $stageUnix = ($stage -replace '\\', '/')
+    $payloadUnix = ($payload -replace '\\', '/')
+    & bash $stageUnix --os win --arch $Arch --out $payloadUnix
     if ($LASTEXITCODE -ne 0) {
         throw "stage-payload.sh failed"
     }

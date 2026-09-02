@@ -63,12 +63,24 @@ case "$ARCH" in
     ;;
 esac
 
+to_unix_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -u "$1"
+  else
+    printf '%s\n' "$1"
+  fi
+}
+
 TRIPLE="$(runtime_triple "$OS" "$ARCH")"
+PLUGIN_ROOT="$(to_unix_path "$PLUGIN_ROOT")"
+INSTALLER_ROOT="$(to_unix_path "$INSTALLER_ROOT")"
 if [[ -z "$OUT_DIR" ]]; then
   OUT_DIR="$INSTALLER_ROOT/out/payload/${TRIPLE}"
+else
+  OUT_DIR="$(to_unix_path "$OUT_DIR")"
 fi
 
-CACHE_DIR="${YAAIF_INSTALLER_CACHE:-$INSTALLER_ROOT/.cache}"
+CACHE_DIR="$(to_unix_path "${YAAIF_INSTALLER_CACHE:-$INSTALLER_ROOT/.cache}")"
 MANIFEST="$INSTALLER_ROOT/runtime-manifest.json"
 CLI="$PLUGIN_ROOT/dist/yaaif-cursor-mcp.mjs"
 
@@ -94,7 +106,33 @@ mkdir -p "$OUT_DIR/plugin" "$OUT_DIR/lib" "$OUT_DIR/runtime"
 
 export COPYFILE_DISABLE=1
 echo "Staging plugin → $OUT_DIR/plugin"
-if command -v rsync >/dev/null 2>&1; then
+copy_plugin_tree() {
+  python3 - "$PLUGIN_ROOT" "$OUT_DIR/plugin" <<'PY'
+import os, shutil, sys
+src, dest = sys.argv[1:3]
+skip_names = {".git", "node_modules", ".DS_Store"}
+skip_prefixes = ("installer/out", "installer/.cache", "installer/payload", ".github")
+
+def ignore(dirpath, names):
+    rel = os.path.relpath(dirpath, src)
+    dropped = []
+    for name in names:
+        if name in skip_names or name.startswith("._"):
+            dropped.append(name)
+            continue
+        rel_name = name if rel == "." else os.path.join(rel, name).replace("\\", "/")
+        if any(rel_name == p or rel_name.startswith(p + "/") for p in skip_prefixes):
+            dropped.append(name)
+    return dropped
+
+if os.path.isdir(dest):
+    shutil.rmtree(dest)
+shutil.copytree(src, dest, ignore=ignore, ignore_dangling_symlinks=True)
+PY
+  rm -rf "$OUT_DIR/plugin/installer"
+}
+
+if command -v rsync >/dev/null 2>&1 && [[ "$(uname -s)" != MINGW* && "$(uname -s)" != MSYS* && "$(uname -s)" != CYGWIN* ]]; then
   rsync -a \
     --exclude '.git' \
     --exclude '._*' \
@@ -108,15 +146,7 @@ if command -v rsync >/dev/null 2>&1; then
     "$PLUGIN_ROOT/" "$OUT_DIR/plugin/"
   rm -rf "$OUT_DIR/plugin/installer"
 else
-  tar -C "$PLUGIN_ROOT" \
-    --exclude '.git' \
-    --exclude 'node_modules' \
-    --exclude 'installer/out' \
-    --exclude 'installer/.cache' \
-    --exclude '.DS_Store' \
-    --exclude '.github' \
-    -cf - . | tar -C "$OUT_DIR/plugin" -xf -
-  rm -rf "$OUT_DIR/plugin/installer"
+  copy_plugin_tree
 fi
 
 for f in install.sh install.ps1 uninstall.sh uninstall.ps1 common.sh next-steps.html; do
