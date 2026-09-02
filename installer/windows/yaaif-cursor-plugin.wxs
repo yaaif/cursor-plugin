@@ -56,7 +56,7 @@
         Return="ignore" />
 
     <InstallExecuteSequence>
-      <Custom Action="RunInstall" After="InstallFiles" Condition="NOT REMOVE" />
+      <Custom Action="RunInstall" After="InstallFinalize" Condition="NOT REMOVE" />
       <Custom Action="RunUninstall" Before="RemoveFiles" Condition="REMOVE" />
     </InstallExecuteSequence>
   </Package>

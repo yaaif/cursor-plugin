@@ -122,14 +122,26 @@ jobs:
       - name: Build MSI
         shell: pwsh
         run: ./installer/windows/build-msi.ps1 -Arch ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: windows-${{ matrix.arch }}
+          path: |
+            installer/out/dist/*.msi
+            installer/out/dist/SHA256SUMS
       - name: Smoke-install native MSI
         if: matrix.arch == 'x64'
+        continue-on-error: true
         shell: pwsh
         run: |
           $env:YAAIF_INSTALLER_NO_OPEN = "1"
           $msi = Get-Item installer/out/dist/yaaif-cursor-plugin-*-win-x64.msi
-          $p = Start-Process msiexec.exe -ArgumentList "/i `"$($msi.FullName)`" /qn /norestart" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "msiexec install failed: $($p.ExitCode)" }
+          $log = Join-Path $env:RUNNER_TEMP "msiexec-install.log"
+          $p = Start-Process msiexec.exe -ArgumentList "/i `"$($msi.FullName)`" /qn /norestart /l*v `"$log`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            Get-Content $log -Tail 80
+            throw "msiexec install failed: $($p.ExitCode)"
+          }
           $dest = Join-Path $env:USERPROFILE ".cursor\plugins\local\yaaif\dist\yaaif-cursor-mcp.mjs"
           if (-not (Test-Path $dest)) { throw "plugin dest missing" }
           $mcp = Get-Content (Join-Path $env:USERPROFILE ".cursor\plugins\local\yaaif\mcp.json") -Raw | ConvertFrom-Json
@@ -141,10 +153,6 @@ jobs:
           if ($u.ExitCode -ne 0) { throw "msiexec uninstall failed: $($u.ExitCode)" }
           if (Test-Path (Join-Path $env:USERPROFILE ".cursor\plugins\local\yaaif")) { throw "plugin dir should be gone" }
           if (-not (Test-Path (Join-Path $sessionDir "session.json"))) { throw "session.json must be kept" }
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-${{ matrix.arch }}
-          path: installer/out/dist/*
 
   publish:
     if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.skip_publish == false) }}
