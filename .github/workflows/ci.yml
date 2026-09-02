@@ -6,6 +6,13 @@ on:
   pull_request:
 
 jobs:
+  installer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Smoke install.sh (offline)
+        run: ./installer/scripts/smoke-install.sh
+
   mcp:
     runs-on: ubuntu-latest
     defaults:

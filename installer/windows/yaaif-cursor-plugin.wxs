@@ -1,0 +1,63 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+      Name="YAAIF Cursor Plugin"
+      Language="1033"
+      Version="$(var.ProductVersion)"
+      Manufacturer="YAAIF / BeezLabs"
+      UpgradeCode="a7c3e91f-4b2d-4e8a-9c11-8f6d2a1b3e07"
+      Scope="perUser">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of YAAIF Cursor Plugin is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Property Id="MSIINSTALLPERUSER" Value="1" />
+    <Property Id="ALLUSERS" Value="2" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="YaaifDir" Name="yaaif">
+        <Directory Id="INSTALLFOLDER" Name="cursor-plugin-setup" />
+      </Directory>
+    </StandardDirectory>
+
+    <ComponentGroup Id="SetupFiles" Directory="INSTALLFOLDER">
+      <Component Id="PayloadZip" Guid="b21e4c0a-6d8f-4f11-9a55-2c0d8e7f1a90">
+        <File Id="PayloadZipFile" Source="$(var.PayloadZip)" KeyPath="yes" />
+      </Component>
+      <Component Id="InstallScript" Guid="c32f5d1b-7e90-4012-8b66-3d1e9f8a2b01">
+        <File Id="InstallPs1" Source="$(var.InstallPs1)" />
+      </Component>
+      <Component Id="BootstrapScript" Guid="d43a6e2c-8f01-4123-9c77-4e2f0a9b3c12">
+        <File Id="BootstrapPs1" Source="$(var.BootstrapPs1)" />
+      </Component>
+      <Component Id="UninstallLib" Guid="e54b7f3d-9012-4234-ad88-5f301bac4d23">
+        <File Id="UninstallPs1" Source="$(var.UninstallPs1)" />
+      </Component>
+      <Component Id="UninstallBootstrap" Guid="f65c8a4e-0123-4345-be99-60412cbd5e34">
+        <File Id="UninstallBootstrapPs1" Source="$(var.UninstallBootstrapPs1)" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="Main" Title="YAAIF Cursor Plugin" Level="1">
+      <ComponentGroupRef Id="SetupFiles" />
+    </Feature>
+
+    <CustomAction
+        Id="RunInstall"
+        Directory="INSTALLFOLDER"
+        ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]Install-YaaifPlugin.ps1&quot; -SetupDir &quot;[INSTALLFOLDER]&quot;"
+        Execute="immediate"
+        Impersonate="yes"
+        Return="check" />
+
+    <CustomAction
+        Id="RunUninstall"
+        Directory="INSTALLFOLDER"
+        ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]Uninstall-YaaifPlugin.ps1&quot;"
+        Execute="immediate"
+        Impersonate="yes"
+        Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="RunInstall" After="InstallFiles" Condition="NOT REMOVE" />
+      <Custom Action="RunUninstall" Before="RemoveFiles" Condition="REMOVE" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>

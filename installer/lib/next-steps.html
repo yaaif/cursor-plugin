@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>YAAIF Cursor plugin — next steps</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, sans-serif; max-width: 40rem; margin: 2.5rem auto; padding: 0 1.25rem; line-height: 1.5; color: #1a1a1a; }
+    code, .path { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.92em; background: #f3f3f3; padding: 0.1em 0.35em; }
+    h1 { font-size: 1.35rem; }
+    ol { padding-left: 1.25rem; }
+    .note { background: #f7f4ea; padding: 0.75rem 1rem; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>YAAIF Cursor plugin __PLUGIN_VERSION__</h1>
+  <p>Files are on disk. Cursor does not load a local plugin until you add the folder once.</p>
+  <ol>
+    <li>Open <strong>Cursor</strong></li>
+    <li><strong>Plugins → + Add → Add local plugin</strong></li>
+    <li>Select this folder:<br/><span class="path">__PLUGIN_PATH__</span></li>
+    <li><strong>Developer: Reload Window</strong></li>
+    <li>In Agent, run <code>/yaaif-doctor</code></li>
+  </ol>
+  <p>Updates: run the newer installer, then reload. You do not add the plugin again.</p>
+  <p class="note">MCP Node: <strong>__NODE_SOURCE__</strong> __NODE_VERSION__<br/>Logged in at <code>~/.yaaif/cursor/</code> is kept on update and uninstall.</p>
+  <p>Uninstall: see <code>__UNINSTALL_HINT__</code></p>
+</body>
+</html>

@@ -17,6 +17,38 @@ This repo is also consumed by [yaaif-platform](https://github.com/yaaif/yaaif-pl
 
 ## Install
 
+### Native installer (recommended when Git/Node/npm are missing)
+
+Download the package for your OS from
+[GitHub Releases](https://github.com/yaaif/cursor-plugin/releases) and run it.
+The same package **installs and updates** the local plugin at
+`~/.cursor/plugins/local/yaaif` (Windows: `%USERPROFILE%\.cursor\plugins\local\yaaif`).
+
+| OS | File |
+|----|------|
+| macOS Apple Silicon | `yaaif-cursor-plugin-<ver>-macos-arm64.pkg` (also `.dmg`) |
+| macOS Intel | `yaaif-cursor-plugin-<ver>-macos-x64.pkg` |
+| Windows x64 | `yaaif-cursor-plugin-<ver>-win-x64.msi` |
+| Ubuntu/Debian | `yaaif-cursor-plugin-<ver>-linux-amd64.deb` or `-linux-arm64.deb` |
+
+If Node.js ≥ 20 is already on `PATH`, it is reused. Otherwise the installer copies
+official Node.js 22 (includes npm) next to the plugin. It does not install a
+system-wide Node via Homebrew, apt, or Chocolatey.
+
+Unsigned macOS builds: right-click the `.pkg` → **Open** if Gatekeeper warns.
+The `.dmg` also has **Install YAAIF Cursor Plugin.command** (no admin password).
+
+Then in Cursor: **Plugins → + Add → Add local plugin** → select
+`~/.cursor/plugins/local/yaaif`. Reload the window and run `/yaaif-doctor`.
+The installer opens `~/.yaaif/cursor/NEXT_STEPS.html` with these steps.
+On later updates, re-run the newer package and reload — no need to add the
+plugin again.
+
+Uninstall (keeps login state): `~/.yaaif/cursor/uninstall.sh` or the MSI / `dpkg -r`.
+Verify release files with `SHA256SUMS` on the GitHub Release.
+
+Build and packaging details: [installer/README.md](installer/README.md).
+
 ### Cursor Marketplace / Team Marketplace
 
 Install **yaaif**, then configure plugin variables (Customize → Plugins → Configure). Defaults point at hosted YAA\F:
@@ -136,6 +168,13 @@ For local platform stacks, see [configure-environment.md](docs/configure-environ
 3. Run `/yaaif-doctor`
 
 Marketplace PCs only receive a new version after that release is **published** to the Cursor marketplace. Local monorepo or git changes do not auto-reach them.
+
+### Native installer (already installed PCs)
+
+Run the newer `.pkg` / `.msi` / `.deb` from
+[GitHub Releases](https://github.com/yaaif/cursor-plugin/releases). Profiles and
+login state in `~/.yaaif/cursor/` are kept. Then **Developer: Reload Window** and
+run `/yaaif-doctor`.
 
 ### Local plugin install
 
