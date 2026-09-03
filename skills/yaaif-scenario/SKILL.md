@@ -80,19 +80,21 @@ If there is no `spec_id`:
 5. After creates, preview/apply catalog sync, attach verification evidence, and
    check readiness before publishing or activation.
 
-## Mode C — sync spec ↔ objects
+## Mode C — apply spec → objects (or adopt live drift)
 
 `/yaaif-sync-scenario` or when the user asks to keep the scenario in sync:
 
 1. Resolve `spec_id` (prompt, list, or last selected scenario).
 2. `yaaif_agent_spec_get` + readiness + coverage.
 3. Direction (always preview before applying):
-   - **from objects** (default): live catalog → spec
-     (`yaaif_agent_spec_sync_preview`, then `yaaif_agent_spec_sync_apply`). Use after Cursor plugin changes to
-     skills, agents, workflows, or MCP servers.
-   - **to objects**: spec → live catalog
-     (`yaaif_agent_spec_sync_preview`, then `yaaif_agent_spec_sync_apply`). Use after editing `workflow_design`
-     or slot `expected_name`. Skill pack files are not overwritten.
+   - **Apply** (default): spec → live catalog
+     (`yaaif_agent_spec_sync_preview` `to_objects`, then `yaaif_agent_spec_sync_apply`).
+     Use after editing `workflow_design` or slot `expected_name`. Skill pack
+     files are not overwritten.
+   - **Adopt** (explicit): live catalog → spec
+     (`yaaif_agent_spec_sync_preview` `from_objects`, then `yaaif_agent_spec_sync_apply`).
+     Overwrites Scenario-owned names and graphs. Use only to take live drift,
+     not as the default finish step after create/bind.
 4. Report updated slots, applied objects, skipped items, and remaining drift.
 
 ## Ground rules
@@ -104,3 +106,6 @@ If there is no `spec_id`:
 - Do not hardcode tenant business copy into YAA\F core services; keep it in
   skills / MCP tools / this spec’s segments.
 - Credentials stay on MCP server profiles, not skill-pack `credentials.yaml`.
+- Live update/delete of bound agents, ambient agents, workflows, and MCP
+  servers is observe-by-default (drift only). Do not ask to flip a tenant to
+  `require` until Apply/Adopt is in regular use; `require` 409s those writes.

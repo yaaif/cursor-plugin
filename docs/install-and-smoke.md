@@ -6,6 +6,6 @@
 4. Skill: `yaaif_skill_create` → map → refresh → runtime reload
 5. MCP: scaffold/deploy/register **or** `yaaif_mcp_link_or_create`
 6. Ambient: workflow agent → ambient agent → workflow → test-trigger
-7. Scenario: `yaaif_agent_spec_create` → bind/create with `spec_id`+`slot_key` → `yaaif_agent_spec_sync_from_objects` → `yaaif_agent_spec_coverage`
+7. Scenario: `yaaif_agent_spec_create` → bind/create with `spec_id`+`slot_key` → `yaaif_agent_spec_sync_to_objects` (apply) → `yaaif_agent_spec_coverage`
 
 Offline: `cd packages/mcp && npm test && npm run build`
