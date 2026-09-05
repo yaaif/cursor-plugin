@@ -22075,6 +22075,15 @@ code {
   cursor: pointer;
 }
 .ycb-close:hover { filter: brightness(.96); }
+.ycb-fallback {
+  display: none;
+  margin-top: 1.2rem;
+  color: var(--ycb-muted);
+  line-height: 1.5;
+  font-size: .95rem;
+}
+.ycb-fallback.is-visible { display: block; }
+.ycb-close.is-hidden { display: none; }
 </style>
 </head>
 <body class="${opts.ok ? "ycb-ok" : "ycb-err"}">
@@ -22088,8 +22097,33 @@ code {
     <p class="ycb-copy">${message}</p>
     ${detail}
     <p class="ycb-return">You can close this window and return to ${returnTo}.</p>
-    <button class="ycb-close" type="button" onclick="window.close()">Close window</button>
+    <button class="ycb-close" id="ycb-close" type="button">Close window</button>
+    <p class="ycb-fallback" id="ycb-fallback" hidden>Your browser will not close this tab. Close it to return to ${returnTo}.</p>
   </main>
+  <script>
+(function () {
+  var closeBtn = document.getElementById("ycb-close");
+  var fallback = document.getElementById("ycb-fallback");
+  function showFallback() {
+    if (closeBtn) {
+      closeBtn.classList.add("is-hidden");
+      closeBtn.setAttribute("hidden", "");
+    }
+    if (fallback) {
+      fallback.removeAttribute("hidden");
+      fallback.classList.add("is-visible");
+    }
+  }
+  function tryClose() {
+    try { window.close(); } catch (e) {}
+    window.setTimeout(function () {
+      if (!document.hidden) showFallback();
+    }, 250);
+  }
+  if (closeBtn) closeBtn.addEventListener("click", tryClose);
+  ${opts.ok ? "tryClose();" : ""}
+})();
+  </script>
 </body>
 </html>`;
 }
@@ -24666,7 +24700,7 @@ function registerSpecTools(server, ctx) {
   server.registerTool(
     "yaaif_agent_spec_sync_workflow_design",
     {
-      description: "Copy bound ambient workflow graphs into the Scenario workflow_design segment. Prefer yaaif_agent_spec_sync_from_objects for a full catalog pull.",
+      description: "Copy bound ambient workflow graphs into the Scenario workflow_design segment. This is an explicit adopt of live graphs. Prefer yaaif_agent_spec_sync_to_objects to apply Scenario-owned workflow_design onto catalog objects.",
       inputSchema: {
         spec_id: external_exports.string(),
         expected_version: expectedVersionSchema
@@ -24689,7 +24723,7 @@ function registerSpecTools(server, ctx) {
   server.registerTool(
     "yaaif_agent_spec_sync_from_objects",
     {
-      description: "Legacy shortcut for applying a live-catalog pull. Call yaaif_agent_spec_sync_preview first, then use yaaif_agent_spec_sync_apply.",
+      description: "Adopt live catalog objects into the Scenario (explicit). Overwrites Scenario-owned names and workflow graphs. Preview with yaaif_agent_spec_sync_preview (from_objects), then apply. Not the default finish step after create/bind.",
       inputSchema: {
         spec_id: external_exports.string(),
         expected_version: expectedVersionSchema,
@@ -24713,7 +24747,7 @@ function registerSpecTools(server, ctx) {
   server.registerTool(
     "yaaif_agent_spec_sync_to_objects",
     {
-      description: "Legacy shortcut for applying a Scenario-to-catalog sync. Call yaaif_agent_spec_sync_preview first, then use yaaif_agent_spec_sync_apply.",
+      description: "Apply Scenario-owned names and workflow_design onto bound catalog objects. Preview with yaaif_agent_spec_sync_preview (to_objects), then apply. Skill pack files are not overwritten.",
       inputSchema: {
         spec_id: external_exports.string(),
         expected_version: expectedVersionSchema,
@@ -25256,7 +25290,7 @@ function registerSpecTools(server, ctx) {
   server.registerTool(
     "yaaif_agent_spec_sync_preview",
     {
-      description: "Preview object-vs-Scenario changes. This is read-only and must precede sync apply.",
+      description: "Preview apply (to_objects: spec \u2192 catalog) or adopt (from_objects: catalog \u2192 spec). Read-only; must precede sync apply.",
       inputSchema: {
         spec_id: external_exports.string(),
         direction: external_exports.enum(["from_objects", "to_objects"])
@@ -25278,7 +25312,7 @@ function registerSpecTools(server, ctx) {
   server.registerTool(
     "yaaif_agent_spec_sync_apply",
     {
-      description: "Apply a reviewed sync preview with the matching Scenario version; clears the resolved conflict set.",
+      description: "Apply a reviewed preview: to_objects writes the Scenario onto bound catalog objects; from_objects adopts live catalog drift into the Scenario.",
       inputSchema: {
         spec_id: external_exports.string(),
         expected_version: expectedVersionSchema,
@@ -25726,6 +25760,73 @@ async function ensureDevSession(ctx, opts = {}) {
   };
 }
 
+// src/lib/installerUpdate.ts
+import { readFile as readFile5 } from "node:fs/promises";
+import { join as join7 } from "node:path";
+function parseDots(v) {
+  return v.split(/[.-]/).filter((p) => /^\d+$/.test(p)).map((p) => Number(p));
+}
+function compareDottedVersion(a, b) {
+  const pa = parseDots(a);
+  const pb = parseDots(b);
+  const n = Math.max(pa.length, pb.length);
+  for (let i = 0; i < n; i += 1) {
+    const da = pa[i] ?? 0;
+    const db = pb[i] ?? 0;
+    if (da < db) return -1;
+    if (da > db) return 1;
+  }
+  return 0;
+}
+async function checkInstallerUpdate(stateHome, fetchFn = fetch) {
+  const manifestPath = join7(stateHome, "install-manifest.json");
+  let installed = "";
+  try {
+    const raw = JSON.parse(await readFile5(manifestPath, "utf8"));
+    installed = String(raw.plugin_version || "");
+  } catch {
+    return {
+      ok: true,
+      detail: { skipped: "no_local_installer_manifest", hint: "Marketplace or manual copy (no installer manifest)." }
+    };
+  }
+  if (!installed) {
+    return { ok: true, detail: { skipped: "empty_plugin_version", path: manifestPath } };
+  }
+  try {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), 4e3);
+    const res = await fetchFn("https://api.github.com/repos/yaaif/cursor-plugin/releases/latest", {
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "yaaif-cursor-plugin-doctor" },
+      signal: ac.signal
+    });
+    clearTimeout(t);
+    if (!res.ok) {
+      return { ok: true, detail: { skipped: "github_http", status: res.status, installed } };
+    }
+    const body = await res.json();
+    const latest = String(body.tag_name || "").replace(/^v/i, "");
+    if (!latest) {
+      return { ok: true, detail: { skipped: "no_tag", installed } };
+    }
+    const cmp = compareDottedVersion(installed, latest);
+    if (cmp < 0) {
+      return {
+        ok: false,
+        detail: {
+          installed,
+          latest,
+          hint: `A newer installer is on GitHub (${latest}). Download from https://github.com/yaaif/cursor-plugin/releases then reload Cursor.`,
+          url: body.html_url || "https://github.com/yaaif/cursor-plugin/releases"
+        }
+      };
+    }
+    return { ok: true, detail: { installed, latest, current: true } };
+  } catch (e) {
+    return { ok: true, detail: { skipped: "github_unreachable", installed, error: String(e).slice(0, 180) } };
+  }
+}
+
 // src/tools/registerDoctor.ts
 function tlsHint(err, tls2 = getTlsResolveInfo()) {
   const msg = String(err);
@@ -25989,6 +26090,12 @@ function registerDoctorTools(server, ctx) {
         });
         void ctx.telemetry.increment(routeOk ? "doctor_ops_telemetry_ok" : "doctor_ops_telemetry_fail");
       }
+    }
+    try {
+      const upd = await checkInstallerUpdate(ctx.cfg.stateHome);
+      add("installer_update", upd.ok, upd.detail);
+    } catch (e) {
+      add("installer_update", true, { skipped: "error", error: String(e).slice(0, 180) });
     }
     const failed = checks.filter((c) => !c.ok);
     const summary = failed.length ? `Doctor found ${failed.length} issue(s): ${failed.map((f) => f.name).join(", ")}` : "Doctor checks passed.";
@@ -27845,7 +27952,7 @@ function isK8s(method) {
 // src/tools/register.ts
 import { cpSync, existsSync as existsSync2, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join as join7 } from "node:path";
+import { join as join8 } from "node:path";
 import { execFileSync as execFileSync3 } from "node:child_process";
 function registerAllTools(server, ctx) {
   registerAuthTools(server, ctx);
@@ -28430,19 +28537,19 @@ function registerMcp(server, ctx) {
       }
       const lang = args.language || "go";
       const workspace = args.workspace_root || process.cwd();
-      const parent = args.target_dir ? args.target_dir.startsWith("/") ? args.target_dir : join7(workspace, args.target_dir) : join7(workspace, "mcp-servers");
-      const dest = join7(parent, `${name}-mcp-service`);
+      const parent = args.target_dir ? args.target_dir.startsWith("/") ? args.target_dir : join8(workspace, args.target_dir) : join8(workspace, "mcp-servers");
+      const dest = join8(parent, `${name}-mcp-service`);
       if (existsSync2(dest)) return fail(`destination already exists: ${dest}`);
       const repo = lang === "python" ? "https://github.com/yaaif/mcp-server-templates-py.git" : "https://github.com/yaaif/mcp-server-templates-go.git";
-      const tmp = mkdtempSync(join7(tmpdir(), "yaaif-mcp-scaffold-"));
+      const tmp = mkdtempSync(join8(tmpdir(), "yaaif-mcp-scaffold-"));
       try {
         execFileSync3("git", ["clone", "--depth", "1", repo, tmp], { stdio: "inherit" });
         cpSync(tmp, dest, {
           recursive: true,
-          filter: (src) => !src.includes(`${join7(tmp, ".git")}`) && !src.endsWith("/.git")
+          filter: (src) => !src.includes(`${join8(tmp, ".git")}`) && !src.endsWith("/.git")
         });
-        rmSync(join7(dest, ".git"), { recursive: true, force: true });
-        const renameScript = join7(dest, "scripts", "rename-service.sh");
+        rmSync(join8(dest, ".git"), { recursive: true, force: true });
+        const renameScript = join8(dest, "scripts", "rename-service.sh");
         if (existsSync2(renameScript)) {
           try {
             execFileSync3("bash", [renameScript, name], { cwd: dest, stdio: "inherit" });
