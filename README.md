@@ -243,7 +243,7 @@ MCP bridge is TypeScript (`packages/mcp`), launched via:
 After npm publish:
 
 ```bash
-npx -y @yaaif/platform-mcp@1.2.0 --client cursor
+npx -y @yaaif/platform-mcp@1.3.0 --client cursor
 ```
 
 Requires **Node.js ≥ 20**. No Go toolchain.

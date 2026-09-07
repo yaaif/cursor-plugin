@@ -39,7 +39,7 @@ Marketplace / local installs currently run the **committed** bridge bundle:
   "mcpServers": {
     "yaaif": {
       "command": "npx",
-      "args": ["-y", "@yaaif/platform-mcp@1.2.0", "--client", "cursor"],
+      "args": ["-y", "@yaaif/platform-mcp@1.3.0", "--client", "cursor"],
       "env": {
         "YAAIF_PLATFORM_PROFILE": "${YAAIF_PLATFORM_PROFILE}",
         "YAAIF_OIDC_AUTHORITY": "${YAAIF_OIDC_AUTHORITY}",
