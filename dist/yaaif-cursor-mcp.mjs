@@ -21862,6 +21862,22 @@ async function yaaifFetch(input, init = {}) {
       }
     );
     req.on("error", reject);
+    req.setTimeout(3e4, () => {
+      req.destroy(new Error(`request timed out: ${url.toString()}`));
+    });
+    if (init.signal) {
+      if (init.signal.aborted) {
+        req.destroy();
+        reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+        return;
+      }
+      const onAbort = () => {
+        req.destroy();
+        reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+      };
+      init.signal.addEventListener("abort", onAbort, { once: true });
+      req.on("close", () => init.signal?.removeEventListener("abort", onAbort));
+    }
     if (body != null) req.write(body);
     req.end();
   });
@@ -22759,6 +22775,10 @@ function redactSecrets(value) {
   return out;
 }
 
+// src/lib/installerSetup.ts
+import { writeFile as writeFile5, rename as rename5 } from "node:fs/promises";
+import { join as join7 } from "node:path";
+
 // src/platform/profiles.ts
 import { mkdir as mkdir4, readFile as readFile4, rename as rename4, writeFile as writeFile4 } from "node:fs/promises";
 import { join as join6 } from "node:path";
@@ -22932,6 +22952,368 @@ async function applyActiveProfile(cfg, store) {
   return profile;
 }
 
+// src/platform/tenants.ts
+function asArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === "object") {
+    const obj = value;
+    if (Array.isArray(obj.items)) return obj.items;
+  }
+  return [];
+}
+function parseTenantMemberships(raw) {
+  return asArray(raw).map((row) => {
+    const o = row && typeof row === "object" ? row : {};
+    const tenant_id = String(o.tenant_id ?? o.id ?? "").trim();
+    const tenant_name = String(o.tenant_name ?? o.name ?? tenant_id).trim();
+    return {
+      tenant_id,
+      tenant_name,
+      role: typeof o.role === "string" ? o.role : void 0,
+      status: typeof o.status === "string" ? o.status : void 0,
+      active: typeof o.active === "boolean" ? o.active : void 0
+    };
+  }).filter((t) => t.tenant_id);
+}
+function slugify(name) {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+function normalizeTenants(memberships, opts = {}) {
+  const selected = (opts.selectedTenantId || "").trim().toLowerCase();
+  const last = (opts.lastTenantId || "").trim().toLowerCase();
+  return memberships.map((m) => {
+    const id = m.tenant_id;
+    const name = m.tenant_name || id;
+    return {
+      id,
+      name,
+      slug: slugify(name) || id.toLowerCase(),
+      role: m.role,
+      status: m.status,
+      active: m.active,
+      is_last: id.toLowerCase() === last,
+      is_selected: id.toLowerCase() === selected
+    };
+  });
+}
+function resolveTenant(memberships, query) {
+  const q = query.trim();
+  if (!q) return { error: "tenant query is empty" };
+  const ql = q.toLowerCase();
+  const byId = memberships.find((m) => m.tenant_id.toLowerCase() === ql);
+  if (byId) return { tenant: byId };
+  const byName = memberships.filter((m) => m.tenant_name.toLowerCase() === ql);
+  if (byName.length === 1) return { tenant: byName[0] };
+  if (byName.length > 1) return { error: `ambiguous tenant name: ${q}`, candidates: byName };
+  const bySlug = memberships.filter((m) => slugify(m.tenant_name) === ql);
+  if (bySlug.length === 1) return { tenant: bySlug[0] };
+  if (bySlug.length > 1) return { error: `ambiguous tenant slug: ${q}`, candidates: bySlug };
+  const partial2 = memberships.filter(
+    (m) => m.tenant_name.toLowerCase().includes(ql) || m.tenant_id.toLowerCase().includes(ql) || slugify(m.tenant_name).includes(ql)
+  );
+  if (partial2.length === 1) return { tenant: partial2[0] };
+  if (partial2.length > 1) return { error: `ambiguous tenant query: ${q}`, candidates: partial2 };
+  return { error: `tenant not found: ${q}` };
+}
+function parseLastTenantId(raw) {
+  if (!raw || typeof raw !== "object") return "";
+  const o = raw;
+  return String(o.last_tenant_id ?? o.tenant_id ?? "").trim();
+}
+
+// src/lib/installerSetup.ts
+var SETUP_ACTIONS = ["detect", "profile", "login", "whoami", "all"];
+var BUILTIN_ORDER = ["hosted", "local-hybrid", "local"];
+function parseSetupAction(argv) {
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg.startsWith("--setup=")) {
+      return requireAction(arg.slice("--setup=".length));
+    }
+    if (arg === "--setup") {
+      return requireAction(argv[i + 1] ?? "");
+    }
+  }
+  return null;
+}
+function parseProfileFlag(argv) {
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg.startsWith("--profile=")) return arg.slice("--profile=".length).trim() || void 0;
+    if (arg === "--profile" || arg === "--profile-id") {
+      const v = (argv[i + 1] ?? "").trim();
+      return v && !v.startsWith("-") ? v : void 0;
+    }
+  }
+  return void 0;
+}
+function requireAction(raw) {
+  const v = raw.trim().toLowerCase();
+  if (SETUP_ACTIONS.includes(v)) return v;
+  throw new Error(`--setup requires ${SETUP_ACTIONS.join("|")} (got ${raw || "(empty)"})`);
+}
+function chooseDetectedProfile(opts) {
+  const existing = (opts.existingId || "").trim().toLowerCase();
+  if (existing) {
+    return { profile_id: existing, kept_existing: true, reason: "existing_active_profile" };
+  }
+  for (const id of BUILTIN_ORDER) {
+    if (opts.reachable[id]) {
+      return { profile_id: id, kept_existing: false, reason: `reachable_${id}` };
+    }
+  }
+  return { profile_id: "hosted", kept_existing: false, reason: "default_hosted_unreachable" };
+}
+function loginSkippedByEnv(env2 = process.env) {
+  const flag = (name) => (env2[name] ?? "").trim() === "1" || (env2[name] ?? "").trim().toLowerCase() === "true";
+  return flag("YAAIF_INSTALLER_NO_LOGIN") || flag("YAAIF_INSTALLER_NO_OPEN") || flag("CI");
+}
+async function probeUrl(url, timeoutMs) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await yaaifFetch(url, { signal: ac.signal });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function defaultProfileProbe(profileId, timeoutMs = 3500) {
+  const profile = builtinProfiles().find((p) => p.id === profileId);
+  if (!profile) return false;
+  const cfg = loadConfig();
+  applyProfileToConfig(cfg, profile);
+  installTlsDispatcher(cfg);
+  const oidcOk = await probeUrl(
+    `${profile.oidc_authority.replace(/\/+$/, "")}/.well-known/openid-configuration`,
+    timeoutMs
+  );
+  const healthOk = await probeUrl(`${profile.api_base_url.replace(/\/+$/, "")}/health`, timeoutMs);
+  return oidcOk && healthOk;
+}
+async function detectDefaultProfile(store, opts = {}) {
+  const keepExisting = opts.keepExisting !== false;
+  const existing = keepExisting ? await store.getActive() : null;
+  if (existing?.profile_id) {
+    const known = await store.get(existing.profile_id);
+    if (known) {
+      return {
+        profile_id: known.id,
+        kept_existing: true,
+        reachable: { hosted: false, "local-hybrid": false, local: false },
+        reason: "existing_active_profile"
+      };
+    }
+  }
+  const probe = opts.probe ?? defaultProfileProbe;
+  const reachable = {
+    hosted: false,
+    "local-hybrid": false,
+    local: false
+  };
+  for (const id of BUILTIN_ORDER) {
+    reachable[id] = await probe(id);
+  }
+  const picked = chooseDetectedProfile({ reachable });
+  return { ...picked, reachable };
+}
+async function writeSetupStatus(stateHome, status) {
+  const path2 = join7(stateHome, "setup-status.json");
+  const tmp = `${path2}.tmp`;
+  await writeFile5(tmp, JSON.stringify(status, null, 2), { mode: 384 });
+  await rename5(tmp, path2);
+  return path2;
+}
+function applyKnown(cfg, profile) {
+  applyProfileToConfig(cfg, profile);
+  installTlsDispatcher(cfg);
+}
+async function tryRefreshSession(auth) {
+  try {
+    const sess = await auth.session();
+    if (!sess?.tokens.access_token) return false;
+    auth.assertIssuerMatch(sess);
+    await auth.accessToken();
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function autoSelectTenant(cfg, auth, api) {
+  const memberships = parseTenantMemberships(await api.apiJSON("GET", "/api/users/me/tenants"));
+  let lastId = "";
+  try {
+    lastId = parseLastTenantId(await api.apiJSON("GET", "/api/users/me/last-tenant"));
+  } catch {
+    lastId = "";
+  }
+  const defaultId = (cfg.defaultTenantId || "").trim();
+  const selected = (await auth.session())?.tenant_id?.trim() || "";
+  let pick2 = "";
+  if (selected && memberships.some((m) => m.tenant_id === selected)) pick2 = selected;
+  else if (defaultId && memberships.some((m) => m.tenant_id === defaultId)) pick2 = defaultId;
+  else if (lastId && memberships.some((m) => m.tenant_id === lastId)) pick2 = lastId;
+  else if (memberships.length === 1) pick2 = memberships[0].tenant_id;
+  if (!pick2) {
+    return { selected: false, tenants: memberships };
+  }
+  const member = memberships.find((m) => m.tenant_id === pick2);
+  await auth.setTenant(member.tenant_id, member.tenant_name);
+  try {
+    await api.apiJSON("POST", "/api/users/me/active-tenant", { tenant_id: member.tenant_id });
+  } catch {
+  }
+  return {
+    selected: true,
+    tenant_id: member.tenant_id,
+    tenant_name: member.tenant_name,
+    email: (await auth.session())?.email
+  };
+}
+async function whoamiSnapshot(cfg, auth, api) {
+  const sess = await auth.session();
+  if (!sess?.tokens.access_token) {
+    return {
+      login: "required",
+      email: void 0,
+      tenant_id: void 0,
+      tenant_name: void 0,
+      needs_tenant_selection: void 0,
+      message: "Not signed in."
+    };
+  }
+  try {
+    const auto = await autoSelectTenant(cfg, auth, api);
+    if (!auto.selected) {
+      return {
+        login: "ok",
+        email: sess.email,
+        tenant_id: void 0,
+        tenant_name: void 0,
+        needs_tenant_selection: true,
+        message: "Signed in; pick a tenant in Cursor with yaaif_set_tenant."
+      };
+    }
+    return {
+      login: "ok",
+      email: auto.email || sess.email,
+      tenant_id: auto.tenant_id,
+      tenant_name: auto.tenant_name,
+      message: `Signed in as ${auto.email || sess.email || "unknown"} (${auto.tenant_name || auto.tenant_id}).`
+    };
+  } catch (e) {
+    return {
+      login: "ok",
+      email: sess.email,
+      tenant_id: sess.tenant_id,
+      tenant_name: sess.tenant_name,
+      needs_tenant_selection: void 0,
+      message: `Signed in as ${sess.email || "unknown"} (tenant lookup failed: ${String(e).slice(0, 160)}).`
+    };
+  }
+}
+async function runInstallerSetup(action, opts = {}) {
+  const argv = opts.argv ?? process.argv.slice(2);
+  const cfg = loadConfig(parseBridgeClient(argv));
+  const store = new SessionStore(cfg.stateHome);
+  await store.ensureHome(cfg.stateHome);
+  const profiles = new ProfileStore(cfg.stateHome, cfg.client.oidcClientId);
+  await profiles.ensureHome();
+  const stamp = () => (/* @__PURE__ */ new Date()).toISOString();
+  const print = (obj) => {
+    console.log(JSON.stringify(obj, null, 2));
+  };
+  const detected = await detectDefaultProfile(profiles, { probe: opts.probe });
+  const requested = parseProfileFlag(argv);
+  let profileId = requested || detected.profile_id;
+  let keptExisting = !requested && detected.kept_existing;
+  if (action === "detect") {
+    print(detected);
+    await writeSetupStatus(cfg.stateHome, {
+      profile_id: detected.profile_id,
+      kept_existing: detected.kept_existing,
+      login: "skipped",
+      message: `Detected ${detected.profile_id} (${detected.reason}).`,
+      updated_at: stamp()
+    });
+    return 0;
+  }
+  const profile = await profiles.get(profileId);
+  if (!profile) {
+    console.error(`unknown profile: ${profileId}`);
+    return 1;
+  }
+  if (action === "profile" || action === "all" || action === "login" || action === "whoami") {
+    await profiles.setActive(profile.id);
+    applyKnown(cfg, profile);
+  }
+  const auth = new AuthClient(cfg, store);
+  const api = new ApiClient(cfg, auth);
+  if (action === "profile") {
+    const status = {
+      profile_id: profile.id,
+      kept_existing: keptExisting,
+      login: "skipped",
+      message: `Active profile is ${profile.id}.`,
+      updated_at: stamp()
+    };
+    await writeSetupStatus(cfg.stateHome, status);
+    print(status);
+    return 0;
+  }
+  let login = "skipped";
+  let loginMessage = "";
+  if (action === "login" || action === "all") {
+    const skipLogin = action === "all" && loginSkippedByEnv();
+    if (skipLogin) {
+      login = "skipped";
+      loginMessage = "Login skipped (silent / CI).";
+    } else if (await tryRefreshSession(auth)) {
+      login = "ok";
+      loginMessage = "Existing session is valid.";
+    } else {
+      try {
+        console.error(`Opening browser to sign in at ${cfg.oidcAuthority} \u2026`);
+        await auth.login();
+        login = "ok";
+        loginMessage = "Browser sign-in completed.";
+      } catch (e) {
+        login = "failed";
+        loginMessage = `Login did not complete: ${String(e).slice(0, 240)}`;
+        console.error(loginMessage);
+      }
+    }
+  }
+  if (action === "whoami" || action === "all" || action === "login") {
+    const snap = login === "failed" ? { login, email: void 0, tenant_id: void 0, tenant_name: void 0, needs_tenant_selection: void 0, message: loginMessage } : await whoamiSnapshot(cfg, auth, api);
+    const status = {
+      profile_id: profile.id,
+      kept_existing: keptExisting,
+      login: snap.login === "required" && login === "skipped" ? "skipped" : snap.login,
+      email: snap.email,
+      tenant_id: snap.tenant_id,
+      tenant_name: snap.tenant_name,
+      needs_tenant_selection: snap.needs_tenant_selection,
+      message: loginMessage && snap.login !== "ok" ? loginMessage : snap.message,
+      updated_at: stamp()
+    };
+    if (login === "skipped" && snap.login === "required") {
+      status.login = "skipped";
+      status.message = loginMessage || "Login skipped; run /yaaif-login in Cursor.";
+    }
+    if (login === "failed") {
+      status.login = "failed";
+      status.message = loginMessage;
+    }
+    await writeSetupStatus(cfg.stateHome, status);
+    print(status);
+    return 0;
+  }
+  return 0;
+}
+
 // src/tools/helpers.ts
 function ok(summary, data) {
   return {
@@ -23064,75 +23446,6 @@ function shellQuote(v) {
   return `'${v.replace(/'/g, `'\\''`)}'`;
 }
 
-// src/platform/tenants.ts
-function asArray(value) {
-  if (Array.isArray(value)) return value;
-  if (value && typeof value === "object") {
-    const obj = value;
-    if (Array.isArray(obj.items)) return obj.items;
-  }
-  return [];
-}
-function parseTenantMemberships(raw) {
-  return asArray(raw).map((row) => {
-    const o = row && typeof row === "object" ? row : {};
-    const tenant_id = String(o.tenant_id ?? o.id ?? "").trim();
-    const tenant_name = String(o.tenant_name ?? o.name ?? tenant_id).trim();
-    return {
-      tenant_id,
-      tenant_name,
-      role: typeof o.role === "string" ? o.role : void 0,
-      status: typeof o.status === "string" ? o.status : void 0,
-      active: typeof o.active === "boolean" ? o.active : void 0
-    };
-  }).filter((t) => t.tenant_id);
-}
-function slugify(name) {
-  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-}
-function normalizeTenants(memberships, opts = {}) {
-  const selected = (opts.selectedTenantId || "").trim().toLowerCase();
-  const last = (opts.lastTenantId || "").trim().toLowerCase();
-  return memberships.map((m) => {
-    const id = m.tenant_id;
-    const name = m.tenant_name || id;
-    return {
-      id,
-      name,
-      slug: slugify(name) || id.toLowerCase(),
-      role: m.role,
-      status: m.status,
-      active: m.active,
-      is_last: id.toLowerCase() === last,
-      is_selected: id.toLowerCase() === selected
-    };
-  });
-}
-function resolveTenant(memberships, query) {
-  const q = query.trim();
-  if (!q) return { error: "tenant query is empty" };
-  const ql = q.toLowerCase();
-  const byId = memberships.find((m) => m.tenant_id.toLowerCase() === ql);
-  if (byId) return { tenant: byId };
-  const byName = memberships.filter((m) => m.tenant_name.toLowerCase() === ql);
-  if (byName.length === 1) return { tenant: byName[0] };
-  if (byName.length > 1) return { error: `ambiguous tenant name: ${q}`, candidates: byName };
-  const bySlug = memberships.filter((m) => slugify(m.tenant_name) === ql);
-  if (bySlug.length === 1) return { tenant: bySlug[0] };
-  if (bySlug.length > 1) return { error: `ambiguous tenant slug: ${q}`, candidates: bySlug };
-  const partial2 = memberships.filter(
-    (m) => m.tenant_name.toLowerCase().includes(ql) || m.tenant_id.toLowerCase().includes(ql) || slugify(m.tenant_name).includes(ql)
-  );
-  if (partial2.length === 1) return { tenant: partial2[0] };
-  if (partial2.length > 1) return { error: `ambiguous tenant query: ${q}`, candidates: partial2 };
-  return { error: `tenant not found: ${q}` };
-}
-function parseLastTenantId(raw) {
-  if (!raw || typeof raw !== "object") return "";
-  const o = raw;
-  return String(o.last_tenant_id ?? o.tenant_id ?? "").trim();
-}
-
 // src/tools/registerAuth.ts
 async function probeOidc(authority) {
   const url = `${authority.replace(/\/+$/, "")}/.well-known/openid-configuration`;
@@ -23188,7 +23501,7 @@ async function resolveAndSetTenant(ctx, query) {
     memberships
   };
 }
-async function autoSelectTenant(ctx) {
+async function autoSelectTenant2(ctx) {
   const memberships = await loadMemberships(ctx);
   const lastId = await loadLastTenantId(ctx);
   const defaultId = (ctx.cfg.defaultTenantId || "").trim();
@@ -23412,7 +23725,7 @@ function registerAuthTools(server, ctx) {
       const { session, auth_url } = await ctx.auth.login();
       let tenant;
       try {
-        tenant = await autoSelectTenant(ctx);
+        tenant = await autoSelectTenant2(ctx);
       } catch (e) {
         tenant = { auto_select_error: String(e) };
       }
@@ -23442,7 +23755,7 @@ function registerAuthTools(server, ctx) {
       const { session, verification_uri, user_code } = await ctx.auth.deviceLogin({ timeout_ms });
       let tenant;
       try {
-        tenant = await autoSelectTenant(ctx);
+        tenant = await autoSelectTenant2(ctx);
       } catch (e) {
         tenant = { auto_select_error: String(e) };
       }
@@ -23680,7 +23993,7 @@ function registerAuthTools(server, ctx) {
           oidc
         });
       }
-      const auto = await autoSelectTenant(ctx);
+      const auto = await autoSelectTenant2(ctx);
       if (!auto.selected) {
         return ok("Authenticated but tenant selection required.", {
           ready: false,
@@ -25762,7 +26075,7 @@ async function ensureDevSession(ctx, opts = {}) {
 
 // src/lib/installerUpdate.ts
 import { readFile as readFile5 } from "node:fs/promises";
-import { join as join7 } from "node:path";
+import { join as join8 } from "node:path";
 function parseDots(v) {
   return v.split(/[.-]/).filter((p) => /^\d+$/.test(p)).map((p) => Number(p));
 }
@@ -25779,7 +26092,7 @@ function compareDottedVersion(a, b) {
   return 0;
 }
 async function checkInstallerUpdate(stateHome, fetchFn = fetch) {
-  const manifestPath = join7(stateHome, "install-manifest.json");
+  const manifestPath = join8(stateHome, "install-manifest.json");
   let installed = "";
   try {
     const raw = JSON.parse(await readFile5(manifestPath, "utf8"));
@@ -27952,7 +28265,7 @@ function isK8s(method) {
 // src/tools/register.ts
 import { cpSync, existsSync as existsSync2, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join as join8 } from "node:path";
+import { join as join9 } from "node:path";
 import { execFileSync as execFileSync3 } from "node:child_process";
 function registerAllTools(server, ctx) {
   registerAuthTools(server, ctx);
@@ -28537,19 +28850,19 @@ function registerMcp(server, ctx) {
       }
       const lang = args.language || "go";
       const workspace = args.workspace_root || process.cwd();
-      const parent = args.target_dir ? args.target_dir.startsWith("/") ? args.target_dir : join8(workspace, args.target_dir) : join8(workspace, "mcp-servers");
-      const dest = join8(parent, `${name}-mcp-service`);
+      const parent = args.target_dir ? args.target_dir.startsWith("/") ? args.target_dir : join9(workspace, args.target_dir) : join9(workspace, "mcp-servers");
+      const dest = join9(parent, `${name}-mcp-service`);
       if (existsSync2(dest)) return fail(`destination already exists: ${dest}`);
       const repo = lang === "python" ? "https://github.com/yaaif/mcp-server-templates-py.git" : "https://github.com/yaaif/mcp-server-templates-go.git";
-      const tmp = mkdtempSync(join8(tmpdir(), "yaaif-mcp-scaffold-"));
+      const tmp = mkdtempSync(join9(tmpdir(), "yaaif-mcp-scaffold-"));
       try {
         execFileSync3("git", ["clone", "--depth", "1", repo, tmp], { stdio: "inherit" });
         cpSync(tmp, dest, {
           recursive: true,
-          filter: (src) => !src.includes(`${join8(tmp, ".git")}`) && !src.endsWith("/.git")
+          filter: (src) => !src.includes(`${join9(tmp, ".git")}`) && !src.endsWith("/.git")
         });
-        rmSync(join8(dest, ".git"), { recursive: true, force: true });
-        const renameScript = join8(dest, "scripts", "rename-service.sh");
+        rmSync(join9(dest, ".git"), { recursive: true, force: true });
+        const renameScript = join9(dest, "scripts", "rename-service.sh");
         if (existsSync2(renameScript)) {
           try {
             execFileSync3("bash", [renameScript, name], { cwd: dest, stdio: "inherit" });
@@ -28721,6 +29034,12 @@ function registerMcp(server, ctx) {
 
 // src/cli.ts
 async function main() {
+  const argv = process.argv.slice(2);
+  const setup = parseSetupAction(argv);
+  if (setup) {
+    const code = await runInstallerSetup(setup, { argv });
+    process.exit(code);
+  }
   const cfg = loadConfig(parseBridgeClient());
   const store = new SessionStore(cfg.stateHome);
   await store.ensureHome(cfg.stateHome);

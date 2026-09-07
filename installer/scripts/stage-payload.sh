@@ -149,7 +149,7 @@ else
   copy_plugin_tree
 fi
 
-for f in install.sh install.ps1 uninstall.sh uninstall.ps1 common.sh next-steps.html; do
+for f in install.sh install.ps1 setup.ps1 uninstall.sh uninstall.ps1 common.sh next-steps.html; do
   cp "$INSTALLER_ROOT/lib/$f" "$OUT_DIR/lib/$f"
 done
 cp "$INSTALLER_ROOT/runtime-manifest.json" "$OUT_DIR/runtime-manifest.json"

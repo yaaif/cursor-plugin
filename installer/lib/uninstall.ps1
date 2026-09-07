@@ -15,7 +15,13 @@ Write-Host "Removing $dest"
 if (Test-Path -LiteralPath $dest) {
     Remove-Item -LiteralPath $dest -Recurse -Force
 }
-foreach ($name in @("install-manifest.json", "NEXT_STEPS.html", "uninstall.ps1")) {
+foreach ($extra in @("yaaif.__staging", "yaaif.__old")) {
+    $p = Join-Path (Split-Path $dest) $extra
+    if (Test-Path -LiteralPath $p) {
+        Remove-Item -LiteralPath $p -Recurse -Force
+    }
+}
+foreach ($name in @("install-manifest.json", "NEXT_STEPS.html", "uninstall.ps1", "setup-status.json")) {
     $p = Join-Path $yaaifHome $name
     if (Test-Path -LiteralPath $p) {
         Remove-Item -LiteralPath $p -Force

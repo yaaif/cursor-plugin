@@ -6,7 +6,9 @@
       Manufacturer="YAAIF / BeezLabs"
       UpgradeCode="a7c3e91f-4b2d-4e8a-9c11-8f6d2a1b3e07"
       Scope="perUser">
-    <MajorUpgrade DowngradeErrorMessage="A newer version of YAAIF Cursor Plugin is already installed." />
+    <MajorUpgrade
+        AllowSameVersionUpgrades="yes"
+        DowngradeErrorMessage="A newer version of YAAIF Cursor Plugin is already installed." />
     <MediaTemplate EmbedCab="yes" />
     <Property Id="MSIINSTALLPERUSER" Value="1" />
     <Property Id="ALLUSERS" Value="2" />
@@ -33,24 +35,33 @@
       <Component Id="UninstallBootstrap" Guid="f65c8a4e-0123-4345-be99-60412cbd5e34">
         <File Id="UninstallBootstrapPs1" Source="$(var.UninstallBootstrapPs1)" />
       </Component>
+      <Component Id="SetupScript" Guid="a76d9b5f-1c2e-4f80-9d33-7e8a4b2c1f06">
+        <File Id="SetupPs1" Source="$(var.SetupPs1)" />
+      </Component>
     </ComponentGroup>
 
     <Feature Id="Main" Title="YAAIF Cursor Plugin" Level="1">
       <ComponentGroupRef Id="SetupFiles" />
     </Feature>
 
+    <!--
+      Do not pass -SetupDir "[INSTALLFOLDER]": MSI directory properties have a
+      trailing backslash, so -SetupDir "C:\...\setup\" escapes the closing quote
+      and powershell.exe -File exits 1 immediately (error 1722).
+      $PSScriptRoot is the setup folder.
+    -->
     <CustomAction
         Id="RunInstall"
-        Directory="INSTALLFOLDER"
-        ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]Install-YaaifPlugin.ps1&quot; -SetupDir &quot;[INSTALLFOLDER]&quot;"
+        Directory="System64Folder"
+        ExeCommand="WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File &quot;[INSTALLFOLDER]Install-YaaifPlugin.ps1&quot;"
         Execute="immediate"
         Impersonate="yes"
         Return="check" />
 
     <CustomAction
         Id="RunUninstall"
-        Directory="INSTALLFOLDER"
-        ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]Uninstall-YaaifPlugin.ps1&quot;"
+        Directory="System64Folder"
+        ExeCommand="WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File &quot;[INSTALLFOLDER]Uninstall-YaaifPlugin.ps1&quot;"
         Execute="immediate"
         Impersonate="yes"
         Return="ignore" />

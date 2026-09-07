@@ -23,15 +23,52 @@ Unsigned macOS builds: right-click the `.pkg` → **Open** if Gatekeeper warns.
 
 ### After the package runs
 
-The installer writes `~/.yaaif/cursor/NEXT_STEPS.html` and opens it when a desktop
+The installer copies the plugin, writes an **absolute Node path** into `mcp.json`,
+detects the default YAAIF server (`hosted` / `local-hybrid` / `local`), and saves
+`~/.yaaif/cursor/active-profile.json`. An interactive install then opens a browser
+for PKCE login and records email + tenant in `setup-status.json`.
+
+It also writes `~/.yaaif/cursor/NEXT_STEPS.html` and opens it when a desktop
 session is available.
 
 1. **First install only:** Cursor → **Plugins → + Add → Add local plugin** → `~/.cursor/plugins/local/yaaif`
+   (Cursor has no API to register a local plugin automatically.)
 2. **Developer: Reload Window**
 3. Run `/yaaif-doctor`
 
-Updates: re-run the newer package, then reload. Downgrades are refused unless
-`--force` / `-Force` is passed.
+Updates and repair: re-run the same or newer package, then reload. An existing
+active profile and session are kept.
+
+- If the plugin folder is missing or incomplete, the installer **repairs** it
+  even when `install-manifest.json` claims a newer version.
+- Downgrades of a **healthy** dest are refused unless `--force` / `-Force`.
+- A successful install means files are on disk. Browser login is optional and
+  never fails the MSI. If login did not run, use `/yaaif-login` in Cursor.
+- If the log says files are locked, close Cursor (or Developer: Reload Window)
+  and re-run the installer. Log: `%TEMP%\yaaif-cursor-plugin-install.log`.
+
+### Silent / CI
+
+| Variable | Effect |
+|----------|--------|
+| `YAAIF_INSTALLER_NO_OPEN=1` | Do not open NEXT_STEPS.html or a visible login window |
+| `YAAIF_INSTALLER_NO_LOGIN=1` | Detect + write profile only; skip browser login |
+| `YAAIF_INSTALLER_NO_SETUP=1` | Skip profile detection and login entirely |
+
+`msiexec /qn` (and `/quiet` / `/passive`) is treated as silent: no browser, no
+pause. Install logs: `%TEMP%\yaaif-cursor-plugin-install.log`.
+
+```powershell
+$env:YAAIF_INSTALLER_NO_OPEN = "1"
+$env:YAAIF_INSTALLER_NO_LOGIN = "1"
+msiexec /i yaaif-cursor-plugin-<ver>-win-x64.msi /qn
+```
+
+The same `--setup` CLI is available after install:
+
+```text
+node dist/yaaif-cursor-mcp.mjs --client cursor --setup detect|profile|login|whoami|all
+```
 
 ### macOS without an admin password
 
@@ -91,6 +128,7 @@ From the plugin repo root:
 ```bash
 ./installer/scripts/stage-payload.sh --os darwin --arch arm64
 YAAIF_INSTALLER_NO_OPEN=1 ./installer/scripts/smoke-install.sh
+pwsh ./installer/scripts/smoke-install.ps1
 ./installer/macos/build-pkg.sh --arch arm64
 ./installer/linux/build-deb.sh --arch amd64
 pwsh ./installer/windows/build-msi.ps1 -Arch x64
@@ -99,4 +137,5 @@ pwsh ./installer/windows/build-msi.ps1 -Arch x64
 Outputs land in `installer/out/dist/` including `SHA256SUMS`.
 Downloads are cached in `installer/.cache/`.
 
-Set `YAAIF_INSTALLER_NO_OPEN=1` in CI so next-steps HTML is not opened.
+Set `YAAIF_INSTALLER_NO_OPEN=1` and `YAAIF_INSTALLER_NO_LOGIN=1` in CI so
+next-steps HTML is not opened and browser login is skipped (profile is still written).

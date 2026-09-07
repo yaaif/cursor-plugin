@@ -42,8 +42,9 @@ jobs:
         if: matrix.arch == 'arm64'
         run: |
           export YAAIF_INSTALLER_NO_OPEN=1
+          export YAAIF_INSTALLER_NO_LOGIN=1
           PKG=$(ls installer/out/dist/yaaif-cursor-plugin-*-macos-arm64.pkg)
-          sudo installer -pkg "$PKG" -target /
+          sudo env YAAIF_INSTALLER_NO_OPEN=1 YAAIF_INSTALLER_NO_LOGIN=1 installer -pkg "$PKG" -target /
           test -f "$HOME/.cursor/plugins/local/yaaif/dist/yaaif-cursor-mcp.mjs"
           python3 - <<'PY'
           import json, os
@@ -51,6 +52,9 @@ jobs:
           cmd = json.load(open(p))["mcpServers"]["yaaif"]["command"]
           assert cmd.startswith("/"), cmd
           print("mcp command", cmd)
+          active = json.load(open(os.path.expanduser("~/.yaaif/cursor/active-profile.json")))
+          assert active.get("profile_id"), active
+          print("profile", active["profile_id"])
           PY
           test -f "$HOME/.yaaif/cursor/NEXT_STEPS.html"
       - uses: actions/upload-artifact@v4
@@ -80,9 +84,10 @@ jobs:
         if: matrix.arch == 'amd64'
         run: |
           export YAAIF_INSTALLER_NO_OPEN=1
+          export YAAIF_INSTALLER_NO_LOGIN=1
           mkdir -p "$HOME/.yaaif/cursor"
           echo '{"keep":true}' > "$HOME/.yaaif/cursor/session.json"
-          sudo env YAAIF_INSTALLER_NO_OPEN=1 dpkg -i installer/out/dist/yaaif-cursor-plugin-*-linux-amd64.deb
+          sudo env YAAIF_INSTALLER_NO_OPEN=1 YAAIF_INSTALLER_NO_LOGIN=1 dpkg -i installer/out/dist/yaaif-cursor-plugin-*-linux-amd64.deb
           test -f "$HOME/.cursor/plugins/local/yaaif/dist/yaaif-cursor-mcp.mjs"
           python3 - <<'PY'
           import json, os
@@ -90,6 +95,9 @@ jobs:
           cmd = json.load(open(p))["mcpServers"]["yaaif"]["command"]
           assert cmd.startswith("/"), cmd
           print("mcp command", cmd)
+          active = json.load(open(os.path.expanduser("~/.yaaif/cursor/active-profile.json")))
+          assert active.get("profile_id"), active
+          print("profile", active["profile_id"])
           PY
           sudo dpkg -r yaaif-cursor-plugin
           test ! -e "$HOME/.cursor/plugins/local/yaaif"
@@ -117,6 +125,9 @@ jobs:
       - name: Build MCP bundle
         working-directory: packages/mcp
         run: npm ci && npm run build
+      - name: Smoke-install install.ps1
+        shell: pwsh
+        run: ./installer/scripts/smoke-install.ps1
       - name: Install WiX
         run: dotnet tool install --global wix --version 5.0.2
       - name: Build MSI
@@ -131,10 +142,10 @@ jobs:
             installer/out/dist/SHA256SUMS
       - name: Smoke-install native MSI
         if: matrix.arch == 'x64'
-        continue-on-error: true
         shell: pwsh
         run: |
           $env:YAAIF_INSTALLER_NO_OPEN = "1"
+          $env:YAAIF_INSTALLER_NO_LOGIN = "1"
           $msi = Get-Item installer/out/dist/yaaif-cursor-plugin-*-win-x64.msi
           $log = Join-Path $env:RUNNER_TEMP "msiexec-install.log"
           $p = Start-Process msiexec.exe -ArgumentList "/i `"$($msi.FullName)`" /qn /norestart /l*v `"$log`"" -Wait -PassThru
@@ -147,8 +158,22 @@ jobs:
           $mcp = Get-Content (Join-Path $env:USERPROFILE ".cursor\plugins\local\yaaif\mcp.json") -Raw | ConvertFrom-Json
           if ($mcp.mcpServers.yaaif.command -notmatch '[:\\]') { throw "expected absolute node path" }
           $sessionDir = Join-Path $env:USERPROFILE ".yaaif\cursor"
+          $active = Join-Path $sessionDir "active-profile.json"
+          if (-not (Test-Path $active)) { throw "active-profile.json missing after silent setup" }
+          $prof = Get-Content $active -Raw | ConvertFrom-Json
+          if (-not $prof.profile_id) { throw "active-profile.json missing profile_id" }
           New-Item -ItemType Directory -Force -Path $sessionDir | Out-Null
           Set-Content (Join-Path $sessionDir "session.json") '{"keep":true}'
+          $pluginDir = Join-Path $env:USERPROFILE ".cursor\plugins\local\yaaif"
+          Remove-Item -LiteralPath $pluginDir -Recurse -Force
+          $repairLog = Join-Path $env:RUNNER_TEMP "msiexec-repair.log"
+          $r = Start-Process msiexec.exe -ArgumentList "/i `"$($msi.FullName)`" /qn /norestart /l*v `"$repairLog`"" -Wait -PassThru
+          if ($r.ExitCode -ne 0) {
+            Get-Content $repairLog -Tail 80
+            throw "msiexec repair/reinstall failed: $($r.ExitCode)"
+          }
+          if (-not (Test-Path $dest)) { throw "plugin dest missing after repair re-run" }
+          if (-not (Test-Path (Join-Path $sessionDir "session.json"))) { throw "session.json must be kept across repair" }
           $u = Start-Process msiexec.exe -ArgumentList "/x `"$($msi.FullName)`" /qn /norestart" -Wait -PassThru
           if ($u.ExitCode -ne 0) { throw "msiexec uninstall failed: $($u.ExitCode)" }
           if (Test-Path (Join-Path $env:USERPROFILE ".cursor\plugins\local\yaaif")) { throw "plugin dir should be gone" }

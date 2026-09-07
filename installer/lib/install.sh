@@ -114,12 +114,45 @@ if [[ -f "$MANIFEST_PATH" ]]; then
   PREV_VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("plugin_version",""))' "$MANIFEST_PATH" 2>/dev/null || true)"
 fi
 
-if [[ -n "$PREV_VERSION" && "$FORCE" != true && "$(type -t version_cmp)" == "function" ]]; then
+plugin_dest_ok() {
+  local root="$1"
+  [[ -f "$root/.cursor-plugin/plugin.json" && -f "$root/dist/yaaif-cursor-mcp.mjs" && -f "$root/mcp.json" ]] || return 1
+  python3 - "$root/mcp.json" <<'PY'
+import json, sys
+cmd = str(json.load(open(sys.argv[1])).get("mcpServers", {}).get("yaaif", {}).get("command") or "")
+sys.exit(0 if cmd and cmd != "node" and (":" in cmd or "\\" in cmd or cmd.startswith("/")) else 1)
+PY
+}
+
+DEST_OK=false
+if plugin_dest_ok "$DEST"; then
+  DEST_OK=true
+fi
+
+if [[ -n "$PREV_VERSION" && "$FORCE" != true && "$(type -t version_cmp)" == "function" && "$DEST_OK" == true ]]; then
   CMP="$(version_cmp "$PREV_VERSION" "$PLUGIN_VERSION" || echo 0)"
   if [[ "$CMP" == "1" ]]; then
-    echo "install.sh: installed $PREV_VERSION is newer than package $PLUGIN_VERSION; skipping (pass --force to overwrite)"
+    echo "install.sh: installed $PREV_VERSION is newer than package $PLUGIN_VERSION and dest is verified; skipping copy (pass --force to overwrite)"
+    NODE_COMMAND="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("node_command",""))' "$MANIFEST_PATH" 2>/dev/null || true)"
+    if [[ -z "$NODE_COMMAND" || "$NODE_COMMAND" == "node" ]]; then
+      NODE_COMMAND="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["mcpServers"]["yaaif"]["command"])' "$DEST/mcp.json" 2>/dev/null || true)"
+    fi
+    NODE_SOURCE="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("node_source",""))' "$MANIFEST_PATH" 2>/dev/null || true)"
+    NODE_VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("node_version",""))' "$MANIFEST_PATH" 2>/dev/null || true)"
+    UNINSTALL_HINT="$YAAIF_HOME/uninstall.sh"
+    run_setup() {
+      [[ "${YAAIF_INSTALLER_NO_SETUP:-}" == "1" ]] && return 0
+      [[ -f "$DEST/dist/yaaif-cursor-mcp.mjs" ]] || return 0
+      [[ -n "$NODE_COMMAND" && -x "$NODE_COMMAND" ]] || return 0
+      "$NODE_COMMAND" "$DEST/dist/yaaif-cursor-mcp.mjs" --client cursor --setup all \
+        || echo "install.sh: setup failed (plugin files are installed)"
+    }
+    run_setup
     exit 0
   fi
+fi
+if [[ -n "$PREV_VERSION" && "$DEST_OK" != true ]]; then
+  echo "install.sh: manifest claims $PREV_VERSION but dest is missing or incomplete; repairing with package $PLUGIN_VERSION"
 fi
 
 system_node_bin=""
@@ -153,15 +186,73 @@ fi
 
 export COPYFILE_DISABLE=1
 mkdir -p "$(dirname "$DEST")" "$YAAIF_HOME"
+DEST_PARENT="$(dirname "$DEST")"
+STAGING="$DEST_PARENT/yaaif.__staging"
+BACKUP="$DEST_PARENT/yaaif.__old"
+rm -rf "$STAGING"
+mkdir -p "$STAGING"
 if command -v rsync >/dev/null 2>&1; then
   rsync -a --delete --exclude runtime --exclude .git --exclude node_modules \
     --exclude '._*' --exclude '.DS_Store' \
-    "$PLUGIN_SRC/" "$DEST/"
+    "$PLUGIN_SRC/" "$STAGING/"
 else
-  mkdir -p "$DEST"
   tar -C "$PLUGIN_SRC" --exclude runtime --exclude .git --exclude node_modules -cf - . \
-    | tar -C "$DEST" -xf -
+    | tar -C "$STAGING" -xf -
 fi
+if [[ ! -f "$STAGING/.cursor-plugin/plugin.json" || ! -f "$STAGING/dist/yaaif-cursor-mcp.mjs" ]]; then
+  echo "install.sh: staged plugin missing plugin.json or dist/yaaif-cursor-mcp.mjs" >&2
+  exit 1
+fi
+rm -rf "$BACKUP"
+SWAPPED=false
+for attempt in 1 2 3; do
+  if [[ -e "$DEST" ]]; then
+    if ! mv "$DEST" "$BACKUP"; then
+      echo "install.sh: swap attempt $attempt: could not move dest (locked?)" >&2
+      sleep 1
+      continue
+    fi
+  fi
+  if mv "$STAGING" "$DEST"; then
+    SWAPPED=true
+    echo "install.sh: swapped staging into $DEST (attempt $attempt)"
+    break
+  fi
+  echo "install.sh: swap attempt $attempt failed" >&2
+  if [[ ! -e "$DEST" && -e "$BACKUP" ]]; then
+    mv "$BACKUP" "$DEST" || true
+  fi
+  sleep 1
+done
+if [[ "$SWAPPED" != true ]]; then
+  echo "install.sh: swap failed after retries; in-place copy (no --delete)" >&2
+  if [[ ! -e "$DEST" && -e "$BACKUP" ]]; then
+    mv "$BACKUP" "$DEST" || true
+  fi
+  mkdir -p "$DEST"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --exclude runtime --exclude .git --exclude node_modules \
+      --exclude '._*' --exclude '.DS_Store' \
+      "$STAGING/" "$DEST/" || echo "install.sh: in-place rsync hit locked files"
+  else
+    tar -C "$STAGING" --exclude runtime --exclude .git --exclude node_modules -cf - . \
+      | tar -C "$DEST" -xf - || echo "install.sh: in-place tar hit locked files"
+  fi
+fi
+if [[ ! -e "$DEST" && -e "$BACKUP" ]]; then
+  echo "install.sh: dest missing; restoring yaaif.__old"
+  mv "$BACKUP" "$DEST"
+fi
+if [[ ! -f "$DEST/.cursor-plugin/plugin.json" || ! -f "$DEST/dist/yaaif-cursor-mcp.mjs" ]]; then
+  if [[ -e "$BACKUP" ]]; then
+    echo "install.sh: verify failed; restoring yaaif.__old" >&2
+    rm -rf "$DEST"
+    mv "$BACKUP" "$DEST"
+  fi
+  echo "install.sh: dest missing plugin.json or dist/yaaif-cursor-mcp.mjs" >&2
+  exit 1
+fi
+rm -rf "$STAGING" "$BACKUP"
 chmod +x "$DEST/run-mcp.sh" 2>/dev/null || true
 
 NODE_SOURCE="system"
@@ -227,6 +318,7 @@ payload = {
     "plugin_path": sys.argv[5],
     "runtime_triple": sys.argv[6],
     "node_command": sys.argv[7],
+    "verified": True,
     "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
 }
 path.write_text(json.dumps(payload, indent=2) + "\n")
@@ -242,11 +334,52 @@ if [[ -f "$SCRIPT_DIR/common.sh" ]]; then
   cp "$SCRIPT_DIR/common.sh" "$YAAIF_HOME/common.sh"
 fi
 
+run_setup() {
+  [[ "${YAAIF_INSTALLER_NO_SETUP:-}" == "1" ]] && return 0
+  [[ -f "$DEST/dist/yaaif-cursor-mcp.mjs" ]] || return 0
+  [[ -n "$NODE_COMMAND" && -x "$NODE_COMMAND" ]] || return 0
+  echo "Running YAAIF setup (profile + optional login)…"
+  if [[ "$(id -u)" -eq 0 && "$TARGET_USER" != "root" ]]; then
+    sudo -u "$TARGET_USER" env \
+      YAAIF_INSTALLER_NO_LOGIN="${YAAIF_INSTALLER_NO_LOGIN:-}" \
+      YAAIF_INSTALLER_NO_OPEN="${YAAIF_INSTALLER_NO_OPEN:-}" \
+      CI="${CI:-}" \
+      "$NODE_COMMAND" "$DEST/dist/yaaif-cursor-mcp.mjs" --client cursor --setup all \
+      || echo "install.sh: setup failed (plugin files are installed)"
+  else
+    "$NODE_COMMAND" "$DEST/dist/yaaif-cursor-mcp.mjs" --client cursor --setup all \
+      || echo "install.sh: setup failed (plugin files are installed)"
+  fi
+}
+run_setup
+
 NEXT_OUT="$YAAIF_HOME/NEXT_STEPS.html"
 if [[ -f "$NEXT_STEPS_TPL" ]]; then
-  python3 - "$NEXT_STEPS_TPL" "$NEXT_OUT" "$PLUGIN_VERSION" "$DEST" "$NODE_SOURCE" "$NODE_VERSION" "$UNINSTALL_HINT" <<'PY'
-import pathlib, sys
-src, dest, ver, path, src_node, node_ver, hint = sys.argv[1:8]
+  python3 - "$NEXT_STEPS_TPL" "$NEXT_OUT" "$PLUGIN_VERSION" "$DEST" "$NODE_SOURCE" "$NODE_VERSION" "$UNINSTALL_HINT" "$YAAIF_HOME" <<'PY'
+import json, pathlib, sys
+src, dest, ver, path, src_node, node_ver, hint, home = sys.argv[1:9]
+profile_id, login_status, login_email, tenant_name = (
+    "hosted",
+    "Sign in from Cursor with /yaaif-login if the installer did not complete login.",
+    "—",
+    "—",
+)
+status_path = pathlib.Path(home) / "setup-status.json"
+if status_path.is_file():
+    try:
+        st = json.loads(status_path.read_text())
+        profile_id = str(st.get("profile_id") or profile_id)
+        login_email = str(st.get("email") or login_email)
+        tenant_name = str(st.get("tenant_name") or st.get("tenant_id") or tenant_name)
+        login = str(st.get("login") or "")
+        login_status = {
+            "ok": "Signed in.",
+            "skipped": "Login skipped (silent/CI). Run /yaaif-login in Cursor.",
+            "failed": "Login did not finish. Run /yaaif-login in Cursor.",
+            "required": "Login required. Run /yaaif-login in Cursor.",
+        }.get(login, str(st.get("message") or login_status))
+    except Exception:
+        pass
 text = pathlib.Path(src).read_text()
 for k, v in {
     "__PLUGIN_VERSION__": ver,
@@ -254,6 +387,10 @@ for k, v in {
     "__NODE_SOURCE__": src_node,
     "__NODE_VERSION__": node_ver,
     "__UNINSTALL_HINT__": hint,
+    "__PROFILE_ID__": profile_id,
+    "__LOGIN_STATUS__": login_status,
+    "__LOGIN_EMAIL__": login_email,
+    "__TENANT_NAME__": tenant_name,
 }.items():
     text = text.replace(k, v)
 pathlib.Path(dest).write_text(text)

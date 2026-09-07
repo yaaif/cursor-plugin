@@ -96,6 +96,7 @@ $wixArgs = $wixPrefix + @(
     "-d", "BootstrapPs1=$(Join-Path $windowsDir 'Install-YaaifPlugin.ps1')",
     "-d", "UninstallPs1=$(Join-Path $installerRoot 'lib\uninstall.ps1')",
     "-d", "UninstallBootstrapPs1=$(Join-Path $windowsDir 'Uninstall-YaaifPlugin.ps1')",
+    "-d", "SetupPs1=$(Join-Path $installerRoot 'lib\setup.ps1')",
     "-o", $outMsi
 )
 

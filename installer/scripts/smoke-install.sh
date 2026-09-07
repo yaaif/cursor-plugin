@@ -7,6 +7,8 @@ INSTALLER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PLUGIN_ROOT="$(cd "$INSTALLER_ROOT/.." && pwd)"
 
 export YAAIF_INSTALLER_NO_OPEN=1
+export YAAIF_INSTALLER_NO_LOGIN=1
+export YAAIF_INSTALLER_NO_SETUP=1
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/yaaif-cursor-install-smoke.XXXXXX")"
 cleanup() { rm -rf "$TMP"; }
@@ -88,7 +90,7 @@ CMD="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["mcpServe
 SRC="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["node_source"])' "$FAKE_HOME/.yaaif/cursor/install-manifest.json")"
 [[ "$SRC" == "bundled" ]] || { echo "expected node_source=bundled, got $SRC"; exit 1; }
 
-echo "== refuse downgrade =="
+echo "== refuse downgrade when dest is verified =="
 python3 - "$FAKE_HOME/.yaaif/cursor/install-manifest.json" <<'PY'
 import json, pathlib, sys
 p = pathlib.Path(sys.argv[1])
@@ -99,6 +101,15 @@ PY
 "$INSTALLER_ROOT/lib/install.sh" --payload "$PAYLOAD" --home "$FAKE_HOME"
 AFTER="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["plugin_version"])' "$FAKE_HOME/.yaaif/cursor/install-manifest.json")"
 [[ "$AFTER" == "9.9.9" ]] || { echo "downgrade should have been skipped, got $AFTER"; exit 1; }
+
+echo "== repair when dest is missing even if manifest is newer =="
+rm -rf "$DEST"
+"$INSTALLER_ROOT/lib/install.sh" --payload "$PAYLOAD" --home "$FAKE_HOME"
+test -f "$DEST/dist/yaaif-cursor-mcp.mjs"
+REPAIRED="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["plugin_version"])' "$FAKE_HOME/.yaaif/cursor/install-manifest.json")"
+[[ "$REPAIRED" == "1.1.0" ]] || { echo "repair should rewrite manifest to package version, got $REPAIRED"; exit 1; }
+VERIFIED="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("verified"))' "$FAKE_HOME/.yaaif/cursor/install-manifest.json")"
+[[ "$VERIFIED" == "True" ]] || { echo "expected verified true, got $VERIFIED"; exit 1; }
 
 echo "== uninstall keeps session =="
 mkdir -p "$FAKE_HOME/.yaaif/cursor"

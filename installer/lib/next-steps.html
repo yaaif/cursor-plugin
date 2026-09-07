@@ -9,11 +9,22 @@
     h1 { font-size: 1.35rem; }
     ol { padding-left: 1.25rem; }
     .note { background: #f7f4ea; padding: 0.75rem 1rem; border-radius: 6px; }
+    dt { font-weight: 600; margin-top: 0.6rem; }
   </style>
 </head>
 <body>
   <h1>YAAIF Cursor plugin __PLUGIN_VERSION__</h1>
   <p>Files are on disk. Cursor does not load a local plugin until you add the folder once.</p>
+  <dl>
+    <dt>Platform profile</dt>
+    <dd><code>__PROFILE_ID__</code></dd>
+    <dt>Sign-in</dt>
+    <dd>__LOGIN_STATUS__</dd>
+    <dt>Account</dt>
+    <dd>__LOGIN_EMAIL__</dd>
+    <dt>Tenant</dt>
+    <dd>__TENANT_NAME__</dd>
+  </dl>
   <ol>
     <li>Open <strong>Cursor</strong></li>
     <li><strong>Plugins → + Add → Add local plugin</strong></li>

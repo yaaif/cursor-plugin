@@ -32,3 +32,6 @@ if ($candidate) {
         Remove-Item -LiteralPath $manifest -Force
     }
 }
+
+$global:LASTEXITCODE = 0
+exit 0

@@ -62,8 +62,8 @@ DEST="$HOME_DIR/.cursor/plugins/local/yaaif"
 YAAIF_HOME="$HOME_DIR/.yaaif/cursor"
 
 echo "Removing $DEST"
-rm -rf "$DEST"
-rm -f "$YAAIF_HOME/install-manifest.json" "$YAAIF_HOME/NEXT_STEPS.html" "$YAAIF_HOME/uninstall.sh"
+rm -rf "$DEST" "$(dirname "$DEST")/yaaif.__staging" "$(dirname "$DEST")/yaaif.__old"
+rm -f "$YAAIF_HOME/install-manifest.json" "$YAAIF_HOME/NEXT_STEPS.html" "$YAAIF_HOME/uninstall.sh" "$YAAIF_HOME/setup-status.json"
 
 if [[ "$USER_FILES_ONLY" != true ]]; then
   if [[ "$(uname -s)" == "Darwin" ]]; then
