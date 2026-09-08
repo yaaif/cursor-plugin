@@ -7,6 +7,10 @@
 - `@yaaif/platform-mcp@1.3.2`: npm README documents full Cursor / Claude Code / Codex install, dependencies, and IDE registration steps.
 - `@yaaif/platform-mcp@1.3.1`: `--install` / `--setup` ask for hosted `https://platform.yaaif.ai` or another YAAIF URL instead of always opening hosted login. Non-interactive: `--yaaif-url` or `--profile`.
 
+## 1.3.2
+
+- Align plugin version with platform 1.3.2.
+
 ## 1.3.0
 
 - Plugin manifest version aligned with `@yaaif/platform-mcp` 1.3.0 and the Claude / Codex plugins.

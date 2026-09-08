@@ -8,7 +8,7 @@ import json
 import sys
 from pathlib import Path
 
-PLUGIN_VERSION = "1.3.0"
+PLUGIN_VERSION = "1.3.2"
 
 EXPECTED_SKILLS = (
     "yaaif-auth",
