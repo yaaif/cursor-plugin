@@ -3,13 +3,13 @@
 Marketplace / local installs launch the published bridge (same pin as Claude / Codex):
 
 ```json
-{ "command": "npx", "args": ["-y", "@yaaif/platform-mcp@1.3.1", "--client", "cursor"] }
+{ "command": "npx", "args": ["-y", "@yaaif/platform-mcp@1.3.3", "--client", "cursor"] }
 ```
 
 Install / profile setup:
 
 ```bash
-npx -y @yaaif/platform-mcp@1.3.1 --install --client cursor --plugin-src ./cursor-plugin
+npx -y @yaaif/platform-mcp@1.3.3 --install --client cursor --plugin-src ./cursor-plugin
 ```
 
 ## Publish checklist
@@ -38,7 +38,7 @@ npx -y @yaaif/platform-mcp@1.3.1 --install --client cursor --plugin-src ./cursor
    npm publish --access public
    ```
 
-3. Confirm `npm view @yaaif/platform-mcp version` reports `1.3.1` before relying on marketplace `npx --install`. The legacy `@yaaif/cursor-mcp` package remains a compatibility launcher. Root `mcp.json` already uses the npx pin.
+3. Confirm `npm view @yaaif/platform-mcp version` reports `1.3.3` before relying on marketplace `npx --install`. The legacy `@yaaif/cursor-mcp` package remains a compatibility launcher. Root `mcp.json` already uses the npx pin.
 
 Claude Code and Codex marketplace installs start `npx -y @yaaif/platform-mcp@<version> --client claude|codex` and cannot start until this package is on the public registry. After publish, bump the pin in `yaaif/claude-plugin` and `yaaif/codex-plugin` `.mcp.json` files. See [`claude-plugin/docs/npm-publish.md`](https://github.com/yaaif/claude-plugin/blob/main/docs/npm-publish.md).
 

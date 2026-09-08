@@ -21,7 +21,7 @@ no longer published.
 ```bash
 cd ~
 git clone https://github.com/yaaif/cursor-plugin.git
-npx -y @yaaif/platform-mcp@1.3.2 --install --client cursor --plugin-src ./cursor-plugin
+npx -y @yaaif/platform-mcp@1.3.3 --install --client cursor --plugin-src ./cursor-plugin
 ```
 
 The installer asks you to choose hosted `https://platform.yaaif.ai` or another
@@ -31,7 +31,7 @@ Then in Cursor: **Plugins → + Add → Add local plugin** → select
 `~/.cursor/plugins/local/yaaif`. Reload the window and run `/yaaif-login` then
 `/yaaif-doctor`.
 
-Air-gap: `npm install -g ./yaaif-platform-mcp-1.3.2.tgz` then
+Air-gap: `npm install -g ./yaaif-platform-mcp-1.3.3.tgz` then
 `yaaif-platform-mcp --install --client cursor --plugin-src ./cursor-plugin --offline`.
 
 `--setup detect|profile|login|whoami|all` remains available after install.
@@ -87,7 +87,7 @@ symlinks/junctions for logos + plugin discovery).
 ```bash
 cd ~
 git clone https://github.com/yaaif/cursor-plugin.git
-npx -y @yaaif/platform-mcp@1.3.2 --install --client cursor --plugin-src ./cursor-plugin --no-login
+npx -y @yaaif/platform-mcp@1.3.3 --install --client cursor --plugin-src ./cursor-plugin --no-login
 ```
 
 Then **Plugins → + Add → Add local plugin** → `~/.cursor/plugins/local/yaaif`.
@@ -111,7 +111,7 @@ Marketplace PCs only receive a new version after that release is **published** t
 ```bash
 cd /path/to/cursor-plugin
 git pull
-npx -y @yaaif/platform-mcp@1.3.2 --install --client cursor --plugin-src . --no-login
+npx -y @yaaif/platform-mcp@1.3.3 --install --client cursor --plugin-src . --no-login
 ```
 
 Then **Developer: Reload Window** and run `/yaaif-doctor`. Profiles under
@@ -131,13 +131,13 @@ Then **Developer: Reload Window** and run `/yaaif-doctor`. Profiles under
 MCP bridge is TypeScript (`packages/mcp`), launched via:
 
 ```json
-{ "command": "npx", "args": ["-y", "@yaaif/platform-mcp@1.3.2", "--client", "cursor"] }
+{ "command": "npx", "args": ["-y", "@yaaif/platform-mcp@1.3.3", "--client", "cursor"] }
 ```
 
 After npm publish:
 
 ```bash
-npx -y @yaaif/platform-mcp@1.3.2 --client cursor
+npx -y @yaaif/platform-mcp@1.3.3 --client cursor
 ```
 
 Requires **Node.js ≥ 20**. No Go toolchain.

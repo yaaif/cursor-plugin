@@ -9,7 +9,7 @@ Repository: https://github.com/yaaif/cursor-plugin
 - [ ] Logo QA: after install, Plugins detail shows the YAA\F “Y” icon (not the generic cube). If cube persists for local installs, use rsync copy + **+ Add local plugin** (see README)
 - [ ] Marketplace preview: relative logo resolves via `raw.githubusercontent.com/.../<sha>/assets/logo.svg`
 - [ ] Absolute GitHub raw URL still works as fallback: https://raw.githubusercontent.com/yaaif/cursor-plugin/main/assets/logo.png
-- [ ] `mcp.json` launches `npx -y @yaaif/platform-mcp@1.3.1 --client cursor`
+- [ ] `mcp.json` launches `npx -y @yaaif/platform-mcp@1.3.3 --client cursor`
 - [ ] Skills/commands have YAML frontmatter (`yaaif-auth`, `yaaif-plan-usecase`, `yaaif-doctor`, `yaaif-ops-support`, create-*)
 - [ ] `yaaif_doctor` passes against a demo tenant (`ops_api` + `ops_telemetry` green when ClickHouse telemetry is up)
 - [ ] README documents profiles (`hosted` / `local-hybrid` / `local`) and `/yaaif-login`
