@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `@yaaif/platform-mcp@1.3.4`: `yaaif_skill_tools_check` accepts MCP server wildcards (`sap-odata:*`) and reads `allowed-prompts` / `allowed-resources` from skill frontmatter. `--install` writes `@yaaif/platform-mcp@1.3.4`.
 - `@yaaif/platform-mcp@1.3.3`: docs-only. npm README is standalone (no platform-repo mention). `--install` writes `@yaaif/platform-mcp@1.3.3`.
 - `@yaaif/platform-mcp@1.3.2`: npm README documents full Cursor / Claude Code / Codex install, dependencies, and IDE registration steps.
 - `@yaaif/platform-mcp@1.3.1`: `--install` / `--setup` ask for hosted `https://platform.yaaif.ai` or another YAAIF URL instead of always opening hosted login. Non-interactive: `--yaaif-url` or `--profile`.

@@ -23488,7 +23488,7 @@ import { constants as fsConstants3 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import { dirname, join as join8, relative, resolve } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-var MCP_PACKAGE_PIN = "@yaaif/platform-mcp@1.3.3";
+var MCP_PACKAGE_PIN = "@yaaif/platform-mcp@1.3.4";
 var CURSOR_MCP_ENV = {
   YAAIF_PLATFORM_PROFILE: "${YAAIF_PLATFORM_PROFILE}",
   YAAIF_OIDC_AUTHORITY: "${YAAIF_OIDC_AUTHORITY}",
@@ -27026,6 +27026,9 @@ function extractSkillToolsFromMarkdown(markdown) {
   if (allowed.length) return dedupe(allowed);
   return dedupe(parseYamlStringList(block, ["tools"]));
 }
+function isServerWildcardToken(token) {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,126}:\*$/.test(token.trim());
+}
 function dedupe(items) {
   const seen = /* @__PURE__ */ new Set();
   const out = [];
@@ -27047,7 +27050,9 @@ function verifyToolsAgainstCatalogs(tools, localNames, mcpNames) {
   const missing = [];
   for (const tool of tools) {
     const key = tool.toLowerCase();
-    if (localSet.has(key)) {
+    if (isServerWildcardToken(tool)) {
+      found_mcp.push(tool);
+    } else if (localSet.has(key)) {
       found_local.push(tool);
     } else if (mcpSet.has(key)) {
       found_mcp.push(tool);
@@ -27189,7 +27194,7 @@ function registerLocalTools(server, ctx) {
     }
   });
   server.registerTool("yaaif_skill_tools_check", {
-    description: "Verify skill frontmatter tools / allowed-tools (or an explicit tools list) exist in local tools or external MCP catalog. Run before skill create.",
+    description: "Verify skill frontmatter tools / allowed-tools (or an explicit tools list) exist in local tools or external MCP catalog. Server wildcards such as sap-odata:* are accepted. Also use allowed-prompts / allowed-resources from markdown. Run before skill create.",
     inputSchema: {
       markdown: external_exports.string().optional(),
       tools: external_exports.array(external_exports.string()).optional()
