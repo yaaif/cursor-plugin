@@ -23131,8 +23131,9 @@ function shouldPromptPlatform(action, argv, opts = {}) {
   if (parseProfileFlag(argv) || parseYaaifUrl(argv)) return false;
   if (opts.prompt) return true;
   if (opts.interactive === false) return false;
-  if (isCiEnv()) return false;
-  return opts.interactive === true || Boolean(stdIn.isTTY);
+  if (opts.interactive === true) return true;
+  if (isCiEnv(opts.env)) return false;
+  return Boolean(stdIn.isTTY);
 }
 async function defaultPromptPlatform(input) {
   const rl = createInterface({ input: stdIn, output: stdErr });
