@@ -1,9 +1,15 @@
 # Publishing `@yaaif/platform-mcp` and the Cursor compatibility wrapper
 
-Marketplace / local installs currently run the **committed** bridge bundle:
+Marketplace / local installs launch the published bridge (same pin as Claude / Codex):
 
 ```json
-{ "command": "node", "args": ["${CURSOR_PLUGIN_ROOT}/dist/yaaif-cursor-mcp.mjs", "--client", "cursor"] }
+{ "command": "npx", "args": ["-y", "@yaaif/platform-mcp@1.3.1", "--client", "cursor"] }
+```
+
+Install / profile setup:
+
+```bash
+npx -y @yaaif/platform-mcp@1.3.1 --install --client cursor --plugin-src ./cursor-plugin
 ```
 
 ## Publish checklist
@@ -32,30 +38,9 @@ Marketplace / local installs currently run the **committed** bridge bundle:
    npm publish --access public
    ```
 
-3. After publish succeeds, optionally switch root `mcp.json` to npx (customers without a local bundle):
+3. Confirm `npm view @yaaif/platform-mcp version` reports `1.3.1` before relying on marketplace `npx --install`. The legacy `@yaaif/cursor-mcp` package remains a compatibility launcher. Root `mcp.json` already uses the npx pin.
 
-```json
-{
-  "mcpServers": {
-    "yaaif": {
-      "command": "npx",
-      "args": ["-y", "@yaaif/platform-mcp@1.3.0", "--client", "cursor"],
-      "env": {
-        "YAAIF_PLATFORM_PROFILE": "${YAAIF_PLATFORM_PROFILE}",
-        "YAAIF_OIDC_AUTHORITY": "${YAAIF_OIDC_AUTHORITY}",
-        "YAAIF_OIDC_CLIENT_ID": "${YAAIF_OIDC_CLIENT_ID}",
-        "YAAIF_API_BASE_URL": "${YAAIF_API_BASE_URL}",
-        "YAAIF_AGENT_BASE_URL": "${YAAIF_AGENT_BASE_URL}",
-        "YAAIF_CONTROL_PLANE_BASE_URL": "${YAAIF_CONTROL_PLANE_BASE_URL}",
-        "YAAIF_APPROVAL_BASE_URL": "${YAAIF_APPROVAL_BASE_URL}",
-        "YAAIF_DEFAULT_TENANT_ID": "${YAAIF_DEFAULT_TENANT_ID}"
-      }
-    }
-  }
-}
-```
-
-Keep the committed `dist/yaaif-cursor-mcp.mjs` path until npm publish is confirmed (`npm view @yaaif/platform-mcp version`). The legacy `@yaaif/cursor-mcp` package remains a compatibility launcher.
+Claude Code and Codex marketplace installs start `npx -y @yaaif/platform-mcp@<version> --client claude|codex` and cannot start until this package is on the public registry. After publish, bump the pin in `yaaif/claude-plugin` and `yaaif/codex-plugin` `.mcp.json` files. See [`claude-plugin/docs/npm-publish.md`](https://github.com/yaaif/claude-plugin/blob/main/docs/npm-publish.md).
 
 4. Submit https://github.com/yaaif/cursor-plugin to [Cursor Marketplace publish](https://cursor.com/marketplace/publish).
 

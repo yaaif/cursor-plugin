@@ -17,37 +17,25 @@ This repo is also consumed by [yaaif-platform](https://github.com/yaaif/yaaif-pl
 
 ## Install
 
-### Native installer (recommended when Git/Node/npm are missing)
+Requires **Node.js ≥ 20** and Git. Native `.pkg` / `.msi` / `.deb` packages are
+no longer published.
 
-Download the package for your OS from
-[GitHub Releases](https://github.com/yaaif/cursor-plugin/releases) and run it.
-The same package **installs and updates** the local plugin at
-`~/.cursor/plugins/local/yaaif` (Windows: `%USERPROFILE%\.cursor\plugins\local\yaaif`).
+```bash
+git clone https://github.com/yaaif/cursor-plugin.git
+npx -y @yaaif/platform-mcp@1.3.1 --install --client cursor --plugin-src ./cursor-plugin
+```
 
-| OS | File |
-|----|------|
-| macOS Apple Silicon | `yaaif-cursor-plugin-<ver>-macos-arm64.pkg` (also `.dmg`) |
-| macOS Intel | `yaaif-cursor-plugin-<ver>-macos-x64.pkg` |
-| Windows x64 | `yaaif-cursor-plugin-<ver>-win-x64.msi` |
-| Ubuntu/Debian | `yaaif-cursor-plugin-<ver>-linux-amd64.deb` or `-linux-arm64.deb` |
-
-If Node.js ≥ 20 is already on `PATH`, it is reused. Otherwise the installer copies
-official Node.js 22 (includes npm) next to the plugin. It does not install a
-system-wide Node via Homebrew, apt, or Chocolatey.
-
-Unsigned macOS builds: right-click the `.pkg` → **Open** if Gatekeeper warns.
-The `.dmg` also has **Install YAAIF Cursor Plugin.command** (no admin password).
+The installer asks you to choose hosted `https://platform.yaaif.ai` or another
+YAAIF URL (`--yaaif-url` / `--profile` for scripts).
 
 Then in Cursor: **Plugins → + Add → Add local plugin** → select
-`~/.cursor/plugins/local/yaaif`. Reload the window and run `/yaaif-doctor`.
-The installer opens `~/.yaaif/cursor/NEXT_STEPS.html` with these steps.
-On later updates, re-run the newer package and reload — no need to add the
-plugin again.
+`~/.cursor/plugins/local/yaaif`. Reload the window and run `/yaaif-login` then
+`/yaaif-doctor`.
 
-Uninstall (keeps login state): `~/.yaaif/cursor/uninstall.sh` or the MSI / `dpkg -r`.
-Verify release files with `SHA256SUMS` on the GitHub Release.
+Air-gap: `npm install -g ./yaaif-platform-mcp-1.3.1.tgz` then
+`yaaif-platform-mcp --install --client cursor --plugin-src ./cursor-plugin --offline`.
 
-Build and packaging details: [installer/README.md](installer/README.md).
+`--setup detect|profile|login|whoami|all` remains available after install.
 
 ### Cursor Marketplace / Team Marketplace
 
@@ -94,66 +82,15 @@ Do not point OIDC at `.local` if Keycloak’s hostname is `.com` — that breaks
 
 ### Local install (developers)
 
-Prefer a **real directory copy** (Cursor can ignore/break on symlinks/junctions for logos + plugin discovery). Requires **Git** and **Node.js ≥ 20**.
-
-#### macOS
+`--install` copies a real directory (Cursor can ignore/break on
+symlinks/junctions for logos + plugin discovery).
 
 ```bash
 git clone https://github.com/yaaif/cursor-plugin.git
-cd cursor-plugin/packages/mcp && npm install && npm run build && cd ../..
-mkdir -p ~/.cursor/plugins/local
-rsync -a --delete --exclude '.git' --exclude 'packages/mcp/node_modules' \
-  "$PWD/" ~/.cursor/plugins/local/yaaif/
+npx -y @yaaif/platform-mcp@1.3.1 --install --client cursor --plugin-src ./cursor-plugin --no-login
 ```
 
-Then in Cursor **Plugins → + Add → Add local plugin** and select `~/.cursor/plugins/local/yaaif` (or the clone path). Reload the window.
-
-Symlink (`ln -sf "$PWD" ~/.cursor/plugins/local/yaaif`) can work for MCP/skills but often fails logo rendering; use rsync if the icon stays a generic cube.
-
-#### Ubuntu desktop (and other Linux)
-
-```bash
-# Prereqs (once)
-sudo apt update
-sudo apt install -y git rsync curl
-# Node.js ≥ 20 (NodeSource example; use nvm/fnm if you prefer)
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt install -y nodejs
-
-git clone https://github.com/yaaif/cursor-plugin.git ~/src/cursor-plugin
-cd ~/src/cursor-plugin
-cd packages/mcp && npm install && npm run build && cd ../..
-mkdir -p ~/.cursor/plugins/local
-rsync -a --delete --exclude '.git' --exclude 'packages/mcp/node_modules' \
-  "$PWD/" ~/.cursor/plugins/local/yaaif/
-```
-
-Then in Cursor **Plugins → + Add → Add local plugin** and select `~/.cursor/plugins/local/yaaif`. Reload the window.
-
-Prefer `rsync` over `ln -s` (same logo/discovery caveat as macOS).
-
-#### Windows (PowerShell)
-
-```powershell
-git clone https://github.com/yaaif/cursor-plugin.git $env:USERPROFILE\src\cursor-plugin
-cd $env:USERPROFILE\src\cursor-plugin
-
-cd packages\mcp
-npm install
-npm run build
-cd ..\..
-
-$dest = Join-Path $env:USERPROFILE ".cursor\plugins\local\yaaif"
-New-Item -ItemType Directory -Force -Path $dest | Out-Null
-
-# Mirror tree (like rsync --delete); skip .git and node_modules
-robocopy . $dest /MIR /XD .git "packages\mcp\node_modules" /NFL /NDL /NJH /NJS /nc /ns /np
-# robocopy exit codes 0–7 are success
-if ($LASTEXITCODE -ge 8) { throw "robocopy failed: $LASTEXITCODE" }
-```
-
-Then in Cursor **Plugins → + Add → Add local plugin** and select  
-`C:\Users\<you>\.cursor\plugins\local\yaaif`. Reload the window.
+Then **Plugins → + Add → Add local plugin** → `~/.cursor/plugins/local/yaaif`.
 
 Logo: `assets/logo.svg` (also `assets/logo.png`). Relative path in `plugin.json` — do not rely on a GitHub raw URL for local installs.
 
@@ -169,59 +106,16 @@ For local platform stacks, see [configure-environment.md](docs/configure-environ
 
 Marketplace PCs only receive a new version after that release is **published** to the Cursor marketplace. Local monorepo or git changes do not auto-reach them.
 
-### Native installer (already installed PCs)
-
-Run the newer `.pkg` / `.msi` / `.deb` from
-[GitHub Releases](https://github.com/yaaif/cursor-plugin/releases). Profiles and
-login state in `~/.yaaif/cursor/` are kept. Then **Developer: Reload Window** and
-run `/yaaif-doctor`.
-
 ### Local plugin install
 
-Re-pull, rebuild, and re-copy into `~/.cursor/plugins/local/yaaif` (Windows: `%USERPROFILE%\.cursor\plugins\local\yaaif`), then reload.
-
-#### macOS
-
 ```bash
-cd /path/to/cursor-plugin   # or clone https://github.com/yaaif/cursor-plugin.git
+cd /path/to/cursor-plugin
 git pull
-cd packages/mcp && npm install && npm run build && cd ../..
-mkdir -p ~/.cursor/plugins/local
-rsync -a --delete --exclude '.git' --exclude 'packages/mcp/node_modules' \
-  "$PWD/" ~/.cursor/plugins/local/yaaif/
+npx -y @yaaif/platform-mcp@1.3.1 --install --client cursor --plugin-src . --no-login
 ```
 
-#### Ubuntu desktop (and other Linux)
-
-```bash
-cd ~/src/cursor-plugin   # or your clone path
-git pull
-cd packages/mcp && npm install && npm run build && cd ../..
-mkdir -p ~/.cursor/plugins/local
-rsync -a --delete --exclude '.git' --exclude 'packages/mcp/node_modules' \
-  "$PWD/" ~/.cursor/plugins/local/yaaif/
-```
-
-If `rsync` is missing: `sudo apt install -y rsync`.
-
-#### Windows (PowerShell)
-
-```powershell
-cd $env:USERPROFILE\src\cursor-plugin   # or your clone path
-git pull
-
-cd packages\mcp
-npm install
-npm run build
-cd ..\..
-
-$dest = Join-Path $env:USERPROFILE ".cursor\plugins\local\yaaif"
-New-Item -ItemType Directory -Force -Path $dest | Out-Null
-robocopy . $dest /MIR /XD .git "packages\mcp\node_modules" /NFL /NDL /NJH /NJS /nc /ns /np
-if ($LASTEXITCODE -ge 8) { throw "robocopy failed: $LASTEXITCODE" }
-```
-
-Then **Developer: Reload Window** (or restart the yaaif MCP) and run `/yaaif-doctor`.
+Then **Developer: Reload Window** and run `/yaaif-doctor`. Profiles under
+`~/.yaaif/cursor/` are kept.
 
 ### After any update
 
@@ -237,13 +131,13 @@ Then **Developer: Reload Window** (or restart the yaaif MCP) and run `/yaaif-doc
 MCP bridge is TypeScript (`packages/mcp`), launched via:
 
 ```json
-{ "command": "node", "args": ["packages/mcp/dist/cli.js", "--client", "cursor"] }
+{ "command": "npx", "args": ["-y", "@yaaif/platform-mcp@1.3.1", "--client", "cursor"] }
 ```
 
 After npm publish:
 
 ```bash
-npx -y @yaaif/platform-mcp@1.3.0 --client cursor
+npx -y @yaaif/platform-mcp@1.3.1 --client cursor
 ```
 
 Requires **Node.js ≥ 20**. No Go toolchain.

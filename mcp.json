@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "yaaif": {
-      "command": "node",
-      "args": ["${CURSOR_PLUGIN_ROOT}/dist/yaaif-cursor-mcp.mjs", "--client", "cursor"],
+      "command": "npx",
+      "args": ["-y", "@yaaif/platform-mcp@1.3.1", "--client", "cursor"],
       "env": {
         "YAAIF_PLATFORM_PROFILE": "${YAAIF_PLATFORM_PROFILE}",
         "YAAIF_OIDC_AUTHORITY": "${YAAIF_OIDC_AUTHORITY}",

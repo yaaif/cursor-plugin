@@ -2,11 +2,16 @@
 
 ## Unreleased
 
-- Native installer packages (macOS `.pkg`/`.dmg`, Windows per-user `.msi`, Linux `.deb`) install or update `~/.cursor/plugins/local/yaaif` and reuse system Node.js ≥ 20 or copy official Node.js 22 LTS (checksum-pinned) next to the plugin. See `installer/README.md`.
-- Installed `mcp.json` always pins an absolute Node path; next-steps HTML is written (and opened) after install; uninstall scripts remove the plugin copy but never session/profiles.
-- Optional signing/notarization (same env vars as the desktop app); release workflow attaches `SHA256SUMS` and smoke-installs native packages on CI VMs.
-- `/yaaif-doctor` `installer_update` check compares `install-manifest.json` to the latest GitHub release.
-- MCP launchers (`run-mcp.sh`, `run-mcp.cmd`) prefer a bundled `runtime/node` before falling back to PATH Node ≥ 20.
+- `@yaaif/platform-mcp@1.3.2`: npm README documents full Cursor / Claude Code / Codex install, dependencies, and IDE registration steps.
+- `@yaaif/platform-mcp@1.3.1`: `--install` / `--setup` ask for hosted `https://platform.yaaif.ai` or another YAAIF URL instead of always opening hosted login. Non-interactive: `--yaaif-url` or `--profile`.
+
+## 1.3.0
+
+- Plugin manifest version aligned with `@yaaif/platform-mcp` 1.3.0 and the Claude / Codex plugins.
+- `/yaaif-scenario` and `/yaaif-sync-scenario` use `yaaif_agent_spec_sync_preview`
+  / `yaaif_agent_spec_sync_apply` (preview then apply / adopt). CI
+  `scripts/check-plugin.py` asserts the ten command names and that contract.
+- Neutral Node installer: `npx @yaaif/platform-mcp@1.3.0 --install --client cursor|claude|codex`. Cursor dest `mcp.json` uses absolute `node` + `cli.js` (Cursor PATH often has no `npx`). Copy is staging-swap; newer healthy dest is kept unless `--force`. Refuses `_npx` cache CLI paths unless `--cli-path`. `--no-login` does not mutate env. Doctor checks `node_runtime`, local dest, and launch command. Native `.pkg` / `.msi` / `.deb` packages, bundled Node runtime, `run-mcp` wrappers, and GitHub `installer_update` are removed.
 
 - MCP bridge (`@yaaif/platform-mcp` 1.3.0): added `claude` as a third `--client` (alongside `cursor`/`codex`) for the new YAAIF Claude Code plugin — `yaaif-claude` OIDC client id, `~/.yaaif/claude` state home, generic (non-logo) callback page branding. `registerClients.test.ts` now asserts all three clients register an identical tool contract.
 - CI: fixed the `tools/list` smoke test, which was broken since the Codex client change added a required `--client` flag that the smoke test wasn't passing.

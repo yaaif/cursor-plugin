@@ -2980,7 +2980,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve.call(this, root, ref);
+      let _sch = resolve2.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a = root.localRefs) === null || _a === void 0 ? void 0 : _a[ref];
         const { schemaId } = this.opts;
@@ -3007,7 +3007,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve(root, ref) {
+    function resolve2(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3638,7 +3638,7 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve(baseURI, relativeURI, options) {
+    function resolve2(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const { parsed: baseParsed, malformedAuthorityOrPort: baseMalformed } = parseWithStatus(baseURI, schemelessOptions);
       const { parsed: relativeParsed, malformedAuthorityOrPort: relativeMalformed } = parseWithStatus(relativeURI, schemelessOptions);
@@ -3649,49 +3649,49 @@ var require_fast_uri = __commonJS({
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
-    function resolveComponent(base, relative, options, skipNormalization) {
+    function resolveComponent(base, relative2, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
         base = parse3(serialize(base, options), options);
-        relative = parse3(serialize(relative, options), options);
+        relative2 = parse3(serialize(relative2, options), options);
       }
       options = options || {};
-      if (!options.tolerant && relative.scheme) {
-        target.scheme = relative.scheme;
-        target.userinfo = relative.userinfo;
-        target.host = relative.host;
-        target.port = relative.port;
-        target.path = removeDotSegments(relative.path || "");
-        target.query = relative.query;
+      if (!options.tolerant && relative2.scheme) {
+        target.scheme = relative2.scheme;
+        target.userinfo = relative2.userinfo;
+        target.host = relative2.host;
+        target.port = relative2.port;
+        target.path = removeDotSegments(relative2.path || "");
+        target.query = relative2.query;
       } else {
-        if (relative.userinfo !== void 0 || relative.host !== void 0 || relative.port !== void 0) {
-          target.userinfo = relative.userinfo;
-          target.host = relative.host;
-          target.port = relative.port;
-          target.path = removeDotSegments(relative.path || "");
-          target.query = relative.query;
+        if (relative2.userinfo !== void 0 || relative2.host !== void 0 || relative2.port !== void 0) {
+          target.userinfo = relative2.userinfo;
+          target.host = relative2.host;
+          target.port = relative2.port;
+          target.path = removeDotSegments(relative2.path || "");
+          target.query = relative2.query;
         } else {
-          if (!relative.path) {
+          if (!relative2.path) {
             target.path = base.path;
-            if (relative.query !== void 0) {
-              target.query = relative.query;
+            if (relative2.query !== void 0) {
+              target.query = relative2.query;
             } else {
               target.query = base.query;
             }
           } else {
-            if (relative.path[0] === "/") {
-              target.path = removeDotSegments(relative.path);
+            if (relative2.path[0] === "/") {
+              target.path = removeDotSegments(relative2.path);
             } else {
               if ((base.userinfo !== void 0 || base.host !== void 0 || base.port !== void 0) && !base.path) {
-                target.path = "/" + relative.path;
+                target.path = "/" + relative2.path;
               } else if (!base.path) {
-                target.path = relative.path;
+                target.path = relative2.path;
               } else {
-                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative.path;
+                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative2.path;
               }
               target.path = removeDotSegments(target.path);
             }
-            target.query = relative.query;
+            target.query = relative2.query;
           }
           target.userinfo = base.userinfo;
           target.host = base.host;
@@ -3699,7 +3699,7 @@ var require_fast_uri = __commonJS({
         }
         target.scheme = base.scheme;
       }
-      target.fragment = relative.fragment;
+      target.fragment = relative2.fragment;
       return target;
     }
     function equal(uriA, uriB, options) {
@@ -3922,7 +3922,7 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize,
-      resolve,
+      resolve: resolve2,
       resolveComponent,
       equal,
       serialize,
@@ -19021,7 +19021,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+        await new Promise((resolve2) => setTimeout(resolve2, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error2) {
@@ -19038,7 +19038,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve2, reject) => {
       const earlyReject = (error2) => {
         reject(error2);
       };
@@ -19116,7 +19116,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve(parseResult.data);
+            resolve2(parseResult.data);
           }
         } catch (error2) {
           reject(error2);
@@ -19377,12 +19377,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve2, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve, interval);
+      const timeoutId = setTimeout(resolve2, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -20473,7 +20473,7 @@ var McpServer = class {
     let task = createTaskResult.task;
     const pollInterval = task.pollInterval ?? 5e3;
     while (task.status !== "completed" && task.status !== "failed" && task.status !== "cancelled") {
-      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      await new Promise((resolve2) => setTimeout(resolve2, pollInterval));
       const updatedTask = await extra.taskStore.getTask(taskId);
       if (!updatedTask) {
         throw new McpError(ErrorCode.InternalError, `Task ${taskId} not found during polling`);
@@ -21137,12 +21137,12 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve) => {
+    return new Promise((resolve2) => {
       const json = serializeMessage(message);
       if (this._stdout.write(json)) {
-        resolve();
+        resolve2();
       } else {
-        this._stdout.once("drain", resolve);
+        this._stdout.once("drain", resolve2);
       }
     });
   }
@@ -21585,14 +21585,14 @@ var baseOpen = async (options) => {
   }
   const subprocess = childProcess.spawn(command, cliArguments, childProcessOptions);
   if (options.wait) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve2, reject) => {
       subprocess.once("error", reject);
       subprocess.once("close", (exitCode) => {
         if (!options.allowNonzeroExitCode && exitCode > 0) {
           reject(new Error(`Exited with code ${exitCode}`));
           return;
         }
-        resolve(subprocess);
+        resolve2(subprocess);
       });
     });
   }
@@ -21835,7 +21835,7 @@ async function yaaifFetch(input, init = {}) {
     ...tlsOpts.ca ? { ca: tlsOpts.ca } : {},
     ...tlsOpts.cert && tlsOpts.key ? { cert: tlsOpts.cert, key: tlsOpts.key } : {}
   }) : new http.Agent();
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve2, reject) => {
     const reqFn = isHttps ? https.request : http.request;
     const req = reqFn(
       {
@@ -21857,7 +21857,7 @@ async function yaaifFetch(input, init = {}) {
             if (v == null) continue;
             rh.set(k, Array.isArray(v) ? v.join(", ") : String(v));
           }
-          resolve(new Response(buf, { status: res.statusCode ?? 0, headers: rh }));
+          resolve2(new Response(buf, { status: res.statusCode ?? 0, headers: rh }));
         });
       }
     );
@@ -22214,7 +22214,7 @@ var AuthClient = class {
     const challenge = b64url(createHash("sha256").update(verifier).digest());
     const state = b64url(randomBytes(24));
     const server = createServer();
-    await new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+    await new Promise((resolve2) => server.listen(0, "127.0.0.1", () => resolve2()));
     const port = server.address().port;
     const redirectUri = `http://127.0.0.1:${port}/callback`;
     const authUrl = new URL(`${this.cfg.oidcAuthority}/protocol/openid-connect/auth`);
@@ -22226,7 +22226,7 @@ var AuthClient = class {
     authUrl.searchParams.set("code_challenge", challenge);
     authUrl.searchParams.set("code_challenge_method", "S256");
     const authUrlStr = authUrl.toString();
-    const code = await new Promise((resolve, reject) => {
+    const code = await new Promise((resolve2, reject) => {
       const timer = setTimeout(() => {
         server.close();
         reject(new Error(`login timed out waiting for browser callback. Open this URL manually: ${authUrlStr}`));
@@ -22296,7 +22296,7 @@ var AuthClient = class {
           })
         );
         clearTimeout(timer);
-        resolve(authCode);
+        resolve2(authCode);
         server.close();
       });
       void open_default(authUrlStr).catch((e) => {
@@ -22777,6 +22777,8 @@ function redactSecrets(value) {
 
 // src/lib/installerSetup.ts
 import { writeFile as writeFile5, rename as rename5 } from "node:fs/promises";
+import { createInterface } from "node:readline/promises";
+import { stdin as stdIn, stderr as stdErr } from "node:process";
 import { join as join7 } from "node:path";
 
 // src/platform/profiles.ts
@@ -22792,6 +22794,50 @@ function deriveServiceUrls(apiBase) {
     agent_base_url: `${base}/agent-service`,
     control_plane_base_url: `${base}/control-plane-service`,
     approval_base_url: `${base}/approval-service`
+  };
+}
+var OIDC_PATH = /\/auth\/realms\/[^/]+\/?$/i;
+var HOSTED_PLATFORM_URL = "https://platform.yaaif.ai";
+function normalizePlatformUrl(raw) {
+  let s = raw.trim();
+  if (!s) throw new Error("YAAIF URL is empty");
+  if (!/^https?:\/\//i.test(s)) s = `https://${s}`;
+  let parsed;
+  try {
+    parsed = new URL(s);
+  } catch {
+    throw new Error(`invalid YAAIF URL: ${raw}`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`YAAIF URL must be http(s) (got ${parsed.protocol})`);
+  }
+  parsed.hash = "";
+  parsed.search = "";
+  parsed.pathname = parsed.pathname.replace(OIDC_PATH, "");
+  if (parsed.pathname === "/") parsed.pathname = "";
+  return trimSlash2(parsed.toString());
+}
+function profileIdFromHostname(hostname2) {
+  const slug = hostname2.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const id = slug || "custom";
+  if (id === "hosted" || id === "local" || id === "local-hybrid") return `custom-${id}`;
+  if (/^[0-9]/.test(id)) return `p-${id}`;
+  return id;
+}
+function profileFromPlatformUrl(raw, oidcClientId = "yaaif-cursor") {
+  const api = normalizePlatformUrl(raw);
+  const host = new URL(api).hostname.toLowerCase();
+  const builtins = builtinProfiles(oidcClientId);
+  if (host === "platform.yaaif.ai") return builtins.find((p) => p.id === "hosted");
+  if (host === "platform.yaaif.local") return builtins.find((p) => p.id === "local");
+  return {
+    id: profileIdFromHostname(host),
+    label: api,
+    description: `Custom YAA\\F at ${api}`,
+    builtin: false,
+    oidc_authority: `${api}/auth/realms/yaaif`,
+    ...deriveServiceUrls(api),
+    oidc_client_id: oidcClientId
   };
 }
 function builtinProfiles(oidcClientId = "yaaif-cursor") {
@@ -23037,15 +23083,105 @@ function parseSetupAction(argv) {
   return null;
 }
 function parseProfileFlag(argv) {
+  return flagValue(argv, "--profile") ?? flagValue(argv, "--profile-id");
+}
+function parseYaaifUrl(argv) {
+  return flagValue(argv, "--yaaif-url") ?? flagValue(argv, "--platform-url");
+}
+function flagValue(argv, name) {
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg.startsWith("--profile=")) return arg.slice("--profile=".length).trim() || void 0;
-    if (arg === "--profile" || arg === "--profile-id") {
+    if (arg === name) {
       const v = (argv[i + 1] ?? "").trim();
       return v && !v.startsWith("-") ? v : void 0;
     }
+    if (arg.startsWith(`${name}=`)) {
+      return arg.slice(name.length + 1).trim() || void 0;
+    }
   }
   return void 0;
+}
+function looksLikePlatformUrl(raw) {
+  const s = raw.trim();
+  if (!s) return false;
+  if (/^https?:\/\//i.test(s)) return true;
+  return /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}([:/].*)?$/i.test(s);
+}
+function parsePlatformPromptAnswer(raw, opts) {
+  const s = raw.trim();
+  if (!s) return { action: "invalid" };
+  if (looksLikePlatformUrl(s)) return { action: "url", url: s };
+  const lower = s.toLowerCase();
+  if (opts.hasExisting) {
+    if (lower === "1" || lower === "keep") return { action: "keep" };
+    if (lower === "2" || lower === "hosted") return { action: "hosted" };
+    if (lower === "3" || lower === "other" || lower === "url") return { action: "other" };
+    return { action: "invalid" };
+  }
+  if (lower === "1" || lower === "hosted") return { action: "hosted" };
+  if (lower === "2" || lower === "other" || lower === "url") return { action: "other" };
+  return { action: "invalid" };
+}
+function isCiEnv(env2 = process.env) {
+  const v = (env2.CI ?? "").trim().toLowerCase();
+  return v === "1" || v === "true";
+}
+function shouldPromptPlatform(action, argv, opts = {}) {
+  if (action === "detect" || action === "whoami") return false;
+  if (parseProfileFlag(argv) || parseYaaifUrl(argv)) return false;
+  if (opts.prompt) return true;
+  if (opts.interactive === false) return false;
+  if (isCiEnv()) return false;
+  return opts.interactive === true || Boolean(stdIn.isTTY);
+}
+async function defaultPromptPlatform(input) {
+  const rl = createInterface({ input: stdIn, output: stdErr });
+  try {
+    const hasExisting = Boolean(input.existingId);
+    for (; ; ) {
+      if (hasExisting) {
+        stdErr.write(
+          `Active YAAIF profile is ${input.existingId} (${input.existingApi || "unknown URL"}).
+  1) Keep current
+  2) Hosted     ${HOSTED_PLATFORM_URL}
+  3) Other URL
+
+Enter 1, 2, 3, or a URL: `
+        );
+      } else {
+        stdErr.write(
+          `Which YAAIF platform should this client use?
+  1) Hosted     ${HOSTED_PLATFORM_URL}
+  2) Other URL  (your company YAAIF, or https://platform.yaaif.local)
+
+Enter 1, 2, or a URL: `
+        );
+      }
+      const first = parsePlatformPromptAnswer(await rl.question(""), { hasExisting });
+      if (first.action === "invalid") {
+        stdErr.write("Choose hosted, another URL, or keep the current profile.\n");
+        continue;
+      }
+      if (first.action === "other") {
+        const url = (await rl.question("YAAIF URL (https://\u2026): ")).trim();
+        if (!looksLikePlatformUrl(url)) {
+          stdErr.write("Enter a full host or http(s) URL.\n");
+          continue;
+        }
+        return { action: "url", url };
+      }
+      if (first.action === "url") return { action: "url", url: first.url };
+      if (first.action === "keep") return { action: "keep" };
+      return { action: "hosted" };
+    }
+  } finally {
+    rl.close();
+  }
+}
+async function activateFromUrl(store, rawUrl, oidcClientId) {
+  const profile = profileFromPlatformUrl(rawUrl, oidcClientId);
+  if (!profile.builtin) await store.upsertCustom(profile);
+  return profile;
 }
 function requireAction(raw) {
   const v = raw.trim().toLowerCase();
@@ -23064,7 +23200,8 @@ function chooseDetectedProfile(opts) {
   }
   return { profile_id: "hosted", kept_existing: false, reason: "default_hosted_unreachable" };
 }
-function loginSkippedByEnv(env2 = process.env) {
+function loginSkippedByEnv(env2 = process.env, opts = {}) {
+  if (opts.noLogin || opts.argv?.includes("--no-login")) return true;
   const flag = (name) => (env2[name] ?? "").trim() === "1" || (env2[name] ?? "").trim().toLowerCase() === "true";
   return flag("YAAIF_INSTALLER_NO_LOGIN") || flag("YAAIF_INSTALLER_NO_OPEN") || flag("CI");
 }
@@ -23225,17 +23362,46 @@ async function runInstallerSetup(action, opts = {}) {
   const print = (obj) => {
     console.log(JSON.stringify(obj, null, 2));
   };
-  const detected = await detectDefaultProfile(profiles, { probe: opts.probe });
   const requested = parseProfileFlag(argv);
-  let profileId = requested || detected.profile_id;
-  let keptExisting = !requested && detected.kept_existing;
+  const requestedUrl = parseYaaifUrl(argv);
+  let profileId;
+  let keptExisting = false;
+  let detected;
+  if (requested) {
+    profileId = requested;
+  } else if (requestedUrl) {
+    const fromUrl = await activateFromUrl(profiles, requestedUrl, cfg.client.oidcClientId);
+    profileId = fromUrl.id;
+  } else if (shouldPromptPlatform(action, argv, opts)) {
+    const current = await profiles.getActive();
+    const existing = current?.profile_id ? await profiles.get(current.profile_id) : null;
+    const ask = opts.prompt ?? defaultPromptPlatform;
+    const choice = await ask({
+      existingId: existing?.id,
+      existingApi: existing?.api_base_url
+    });
+    if (choice.action === "keep" && existing) {
+      profileId = existing.id;
+      keptExisting = true;
+    } else if (choice.action === "url" && choice.url) {
+      const fromUrl = await activateFromUrl(profiles, choice.url, cfg.client.oidcClientId);
+      profileId = fromUrl.id;
+    } else {
+      profileId = "hosted";
+    }
+  } else {
+    detected = await detectDefaultProfile(profiles, { probe: opts.probe });
+    profileId = detected.profile_id;
+    keptExisting = detected.kept_existing;
+  }
   if (action === "detect") {
-    print(detected);
+    const result = detected ?? await detectDefaultProfile(profiles, { probe: opts.probe });
+    print(result);
     await writeSetupStatus(cfg.stateHome, {
-      profile_id: detected.profile_id,
-      kept_existing: detected.kept_existing,
+      profile_id: result.profile_id,
+      kept_existing: result.kept_existing,
       login: "skipped",
-      message: `Detected ${detected.profile_id} (${detected.reason}).`,
+      message: `Detected ${result.profile_id} (${result.reason}).`,
       updated_at: stamp()
     });
     return 0;
@@ -23266,7 +23432,7 @@ async function runInstallerSetup(action, opts = {}) {
   let login = "skipped";
   let loginMessage = "";
   if (action === "login" || action === "all") {
-    const skipLogin = action === "all" && loginSkippedByEnv();
+    const skipLogin = action === "all" && loginSkippedByEnv(process.env, { noLogin: opts.noLogin, argv });
     if (skipLogin) {
       login = "skipped";
       loginMessage = "Login skipped (silent / CI).";
@@ -23312,6 +23478,447 @@ async function runInstallerSetup(action, opts = {}) {
     return 0;
   }
   return 0;
+}
+
+// src/lib/pluginInstall.ts
+import { access, cp, mkdir as mkdir5, readFile as readFile5, rename as rename6, rm as rm2, writeFile as writeFile6 } from "node:fs/promises";
+import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
+import { constants as fsConstants3 } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import { dirname, join as join8, relative, resolve } from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+var MCP_PACKAGE_PIN = "@yaaif/platform-mcp@1.3.2";
+var CURSOR_MCP_ENV = {
+  YAAIF_PLATFORM_PROFILE: "${YAAIF_PLATFORM_PROFILE}",
+  YAAIF_OIDC_AUTHORITY: "${YAAIF_OIDC_AUTHORITY}",
+  YAAIF_OIDC_CLIENT_ID: "${YAAIF_OIDC_CLIENT_ID}",
+  YAAIF_API_BASE_URL: "${YAAIF_API_BASE_URL}",
+  YAAIF_AGENT_BASE_URL: "${YAAIF_AGENT_BASE_URL}",
+  YAAIF_CONTROL_PLANE_BASE_URL: "${YAAIF_CONTROL_PLANE_BASE_URL}",
+  YAAIF_APPROVAL_BASE_URL: "${YAAIF_APPROVAL_BASE_URL}",
+  YAAIF_DEFAULT_TENANT_ID: "${YAAIF_DEFAULT_TENANT_ID}",
+  YAAIF_EXTRA_CA_FILE: "${YAAIF_EXTRA_CA_FILE}"
+};
+var CLAUDE_MCP_ENV = {
+  YAAIF_PLATFORM_PROFILE: "${user_config.YAAIF_PLATFORM_PROFILE}",
+  YAAIF_OIDC_AUTHORITY: "${user_config.YAAIF_OIDC_AUTHORITY}",
+  YAAIF_API_BASE_URL: "${user_config.YAAIF_API_BASE_URL}",
+  YAAIF_AGENT_BASE_URL: "${user_config.YAAIF_AGENT_BASE_URL}",
+  YAAIF_CONTROL_PLANE_BASE_URL: "${user_config.YAAIF_CONTROL_PLANE_BASE_URL}",
+  YAAIF_APPROVAL_BASE_URL: "${user_config.YAAIF_APPROVAL_BASE_URL}",
+  YAAIF_DEFAULT_TENANT_ID: "${user_config.YAAIF_DEFAULT_TENANT_ID}",
+  YAAIF_OIDC_CLIENT_ID: "${user_config.YAAIF_OIDC_CLIENT_ID}",
+  YAAIF_EXTRA_CA_FILE: "${user_config.YAAIF_EXTRA_CA_FILE}",
+  YAAIF_CLIENT_CERT_FILE: "${user_config.YAAIF_CLIENT_CERT_FILE}",
+  YAAIF_CLIENT_KEY_FILE: "${user_config.YAAIF_CLIENT_KEY_FILE}"
+};
+function parseInstallAction(argv) {
+  return argv.includes("--install");
+}
+function parsePluginSrc(argv) {
+  return flagValue2(argv, "--plugin-src");
+}
+function parseOffline(argv) {
+  return argv.includes("--offline");
+}
+function parseNoLogin(argv) {
+  return argv.includes("--no-login");
+}
+function parseForce(argv) {
+  return argv.includes("--force");
+}
+function parseCliPath(argv) {
+  return flagValue2(argv, "--cli-path");
+}
+function parseInstallOptions(argv) {
+  const client = parseBridgeClient(argv).id;
+  const pluginSrc = parsePluginSrc(argv);
+  const cliPath = parseCliPath(argv);
+  return {
+    client,
+    pluginSrc: pluginSrc ? resolve(pluginSrc) : void 0,
+    offline: parseOffline(argv),
+    noLogin: parseNoLogin(argv),
+    force: parseForce(argv),
+    cliPathExplicit: Boolean(cliPath),
+    cliPath: cliPath ? resolve(cliPath) : void 0
+  };
+}
+function assertNode20(version2 = process.versions.node) {
+  const major = Number.parseInt(version2.split(".")[0] ?? "", 10);
+  if (!Number.isFinite(major) || major < 20) {
+    throw new Error(`Node.js >= 20 is required (found ${version2})`);
+  }
+}
+function compareDottedVersion(left, right) {
+  const a = left.split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const b = right.split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i += 1) {
+    const d = (a[i] ?? 0) - (b[i] ?? 0);
+    if (d < 0) return -1;
+    if (d > 0) return 1;
+  }
+  return 0;
+}
+function cursorPluginDest(home = homedir3()) {
+  const override = (process.env.YAAIF_CURSOR_PLUGIN_DEST ?? "").trim();
+  if (override) return resolve(override);
+  return join8(home, ".cursor", "plugins", "local", "yaaif");
+}
+function isUnstableCliPath(p) {
+  const n = p.replace(/\\/g, "/");
+  return n.includes("/_npx/") || n.includes("/.npm/_npx/");
+}
+function assertStableCliPath(p, allowUnstable = false) {
+  if (!allowUnstable && isUnstableCliPath(p)) {
+    throw new Error(
+      `refusing to pin MCP CLI under npx cache (${p}); pass --cli-path to a stable install (npm install -g or packages/mcp/dist/cli.js)`
+    );
+  }
+}
+function defaultCliJsPath(fromMetaUrl = import.meta.url) {
+  const candidates = [
+    fileURLToPath2(new URL("../cli.js", fromMetaUrl)),
+    fileURLToPath2(new URL("../cli.ts", fromMetaUrl))
+  ];
+  for (const c of candidates) {
+    if (existsSync2(c) && !isUnstableCliPath(c)) return c;
+  }
+  const argv1 = (process.argv[1] ?? "").trim();
+  if (argv1) {
+    const resolved = resolve(argv1);
+    if (existsSync2(resolved) && !isUnstableCliPath(resolved)) return resolved;
+  }
+  throw new Error("could not resolve a stable MCP cli.js path; pass --cli-path");
+}
+function defaultMcpEnv(client) {
+  if (client === "cursor") return { ...CURSOR_MCP_ENV };
+  if (client === "claude") return { ...CLAUDE_MCP_ENV };
+  return void 0;
+}
+function buildMcpServerEntry(opts) {
+  const env2 = opts.env === void 0 ? defaultMcpEnv(opts.client) : opts.env;
+  const useAbsolute = opts.offline || opts.client === "cursor";
+  const entry = useAbsolute ? {
+    command: opts.nodePath ?? process.execPath,
+    args: [opts.cliPath ?? defaultCliJsPath(), "--client", opts.client]
+  } : {
+    command: "npx",
+    args: ["-y", MCP_PACKAGE_PIN, "--client", opts.client]
+  };
+  if (env2 && Object.keys(env2).length > 0) entry.env = env2;
+  return entry;
+}
+function resolveMcpJsonPath(client, pluginRoot) {
+  if (client === "cursor") return join8(pluginRoot, "mcp.json");
+  const nested = join8(pluginRoot, "plugins", "yaaif-platform", ".mcp.json");
+  if (client === "codex" && existsSync2(nested)) return nested;
+  return join8(pluginRoot, ".mcp.json");
+}
+function shouldCopyPluginPath(srcRoot, from) {
+  const rel = relative(srcRoot, from);
+  if (!rel || rel === ".") return true;
+  const parts = rel.split(/[/\\]/);
+  if (parts.includes(".git")) return false;
+  if (parts[0] === "installer") return false;
+  if (parts.includes("node_modules")) return false;
+  return true;
+}
+function readPluginVersion(pluginRoot) {
+  const path2 = join8(pluginRoot, ".cursor-plugin", "plugin.json");
+  if (!existsSync2(path2)) return "";
+  try {
+    const doc = JSON.parse(readFileSync2(path2, "utf8"));
+    return String(doc.version ?? "").trim();
+  } catch {
+    return "";
+  }
+}
+function pluginDestHealthy(dest) {
+  return existsSync2(join8(dest, ".cursor-plugin", "plugin.json")) && existsSync2(join8(dest, "mcp.json"));
+}
+function assertCursorPluginSrc(src) {
+  const manifest = join8(src, ".cursor-plugin", "plugin.json");
+  if (!existsSync2(manifest)) {
+    throw new Error(`--plugin-src is not a Cursor plugin (missing ${manifest})`);
+  }
+  if (!readPluginVersion(src)) {
+    throw new Error(`--plugin-src plugin.json is missing version (${manifest})`);
+  }
+}
+function assertMcpPluginSrc(client, src) {
+  const mcpPath = resolveMcpJsonPath(client, src);
+  if (!existsSync2(mcpPath)) {
+    throw new Error(`--plugin-src missing MCP config (${mcpPath})`);
+  }
+}
+async function stageCursorPlugin(src, dest) {
+  const staging = `${dest}.__staging`;
+  await rm2(staging, { recursive: true, force: true });
+  await mkdir5(dirname(dest), { recursive: true });
+  await cp(src, staging, {
+    recursive: true,
+    force: true,
+    filter: (from) => shouldCopyPluginPath(src, from)
+  });
+  return staging;
+}
+async function swapStagedPlugin(staging, dest) {
+  const old = `${dest}.__old`;
+  await rm2(old, { recursive: true, force: true });
+  if (existsSync2(dest)) {
+    await rename6(dest, old);
+  }
+  try {
+    await rename6(staging, dest);
+  } catch (e) {
+    if (existsSync2(old) && !existsSync2(dest)) {
+      await rename6(old, dest).catch(() => void 0);
+    }
+    throw e;
+  }
+  await rm2(old, { recursive: true, force: true });
+}
+async function writeMcpJson(path2, entry) {
+  let doc = {};
+  if (existsSync2(path2)) {
+    try {
+      doc = JSON.parse(await readFile5(path2, "utf8"));
+    } catch {
+      doc = {};
+    }
+  }
+  const existing = doc.mcpServers?.yaaif;
+  const next = {
+    command: entry.command,
+    args: entry.args
+  };
+  const env2 = existing?.env ?? entry.env;
+  if (env2 && Object.keys(env2).length > 0) next.env = env2;
+  doc.mcpServers = { ...doc.mcpServers, yaaif: next };
+  await mkdir5(dirname(path2), { recursive: true });
+  const tmp = `${path2}.tmp`;
+  await writeFile6(tmp, `${JSON.stringify(doc, null, 2)}
+`, "utf8");
+  await rename6(tmp, path2);
+}
+function collectInstallHealth(opts) {
+  const checks = [];
+  const nodeVersion = opts.nodeVersion ?? process.versions.node;
+  const major = Number.parseInt(nodeVersion.split(".")[0] ?? "", 10);
+  checks.push({
+    name: "node_runtime",
+    ok: Number.isFinite(major) && major >= 20,
+    detail: { version: nodeVersion, hint: major >= 20 ? void 0 : "Install Node.js >= 20 and re-run --install" }
+  });
+  if (opts.client === "cursor") {
+    const dest = opts.cursorDest ?? cursorPluginDest();
+    if (!existsSync2(dest)) {
+      checks.push({
+        name: "cursor_plugin_dest",
+        ok: true,
+        detail: { dest, skipped: "not_local_install" }
+      });
+    } else {
+      const healthy = pluginDestHealthy(dest);
+      checks.push({
+        name: "cursor_plugin_dest",
+        ok: healthy,
+        detail: {
+          dest,
+          hint: healthy ? void 0 : "Re-run npx @yaaif/platform-mcp --install --client cursor --plugin-src <clone>"
+        }
+      });
+      const mcpPath = opts.mcpJsonPath ?? join8(dest, "mcp.json");
+      checks.push(mcpLaunchCheck(opts.client, mcpPath));
+    }
+  } else if (opts.mcpJsonPath) {
+    checks.push(mcpLaunchCheck(opts.client, opts.mcpJsonPath));
+  }
+  return checks;
+}
+function mcpLaunchCheck(client, mcpPath) {
+  if (!existsSync2(mcpPath)) {
+    return { name: "mcp_launch", ok: false, detail: { mcpPath, hint: "mcp.json missing" } };
+  }
+  try {
+    const doc = JSON.parse(readFileSync2(mcpPath, "utf8"));
+    const entry = doc.mcpServers?.yaaif;
+    if (!entry?.command) {
+      return { name: "mcp_launch", ok: false, detail: { mcpPath, hint: "mcpServers.yaaif.command missing" } };
+    }
+    if (entry.command === "npx") {
+      const ok2 = client !== "cursor";
+      return {
+        name: "mcp_launch",
+        ok: ok2,
+        detail: {
+          mcpPath,
+          command: entry.command,
+          args: entry.args,
+          hint: ok2 ? void 0 : "Cursor PATH often has no npx. Re-run --install so mcp.json uses absolute node + cli.js"
+        }
+      };
+    }
+    const commandOk = existsSync2(entry.command);
+    const cli = entry.args?.[0] ?? "";
+    const cliOk = !cli || existsSync2(cli);
+    return {
+      name: "mcp_launch",
+      ok: commandOk && cliOk,
+      detail: {
+        mcpPath,
+        command: entry.command,
+        cli,
+        hint: commandOk && cliOk ? void 0 : "Launch command or CLI path is missing on disk"
+      }
+    };
+  } catch (e) {
+    return { name: "mcp_launch", ok: false, detail: { mcpPath, error: String(e) } };
+  }
+}
+async function verifyInstall(opts) {
+  const checks = collectInstallHealth(opts);
+  for (const check2 of checks) {
+    if (check2.name !== "mcp_launch" || !check2.ok) continue;
+    const mcpPath = opts.mcpJsonPath ?? (opts.cursorDest ? join8(opts.cursorDest, "mcp.json") : "");
+    if (!mcpPath || !existsSync2(mcpPath)) continue;
+    try {
+      const doc = JSON.parse(await readFile5(mcpPath, "utf8"));
+      const entry = doc.mcpServers?.yaaif;
+      if (entry?.command && entry.command !== "npx") {
+        await access(entry.command, fsConstants3.F_OK);
+      }
+      const cli = entry?.args?.[0];
+      if (cli && cli !== "-y" && existsSync2(cli)) {
+        await access(cli, fsConstants3.F_OK);
+      }
+    } catch {
+      check2.ok = false;
+    }
+  }
+  return checks;
+}
+function nextSteps(opts) {
+  if (opts.client === "cursor") {
+    const dest = opts.pluginDest ?? cursorPluginDest();
+    return [
+      `Installed Cursor plugin files to ${dest}`,
+      "First install only: Cursor \u2192 Plugins \u2192 + Add \u2192 Add local plugin \u2192 that path.",
+      "Then Developer: Reload Window, run /yaaif-login and /yaaif-doctor."
+    ].join("\n");
+  }
+  if (opts.client === "claude") {
+    const dir2 = opts.pluginSrc;
+    return [
+      dir2 ? `claude --plugin-dir ${dir2}` : "claude plugin marketplace add yaaif/claude-plugin && claude plugin install yaaif-platform",
+      "Start a new Claude Code session, then /yaaif-platform:yaaif-login and /yaaif-platform:yaaif-doctor."
+    ].join("\n");
+  }
+  const dir = opts.pluginSrc;
+  return [
+    dir ? `In Codex, add ${dir} as a local marketplace (yaaif) and install yaaif-platform.` : "In Codex, add the yaaif/codex-plugin clone as a local marketplace and install yaaif-platform.",
+    "Start a new Codex task, then run $yaaif-login and $yaaif-doctor."
+  ].join("\n");
+}
+async function runInstall(opts = {}) {
+  const argv = opts.argv ?? process.argv.slice(2);
+  try {
+    assertNode20();
+    const parsed = parseInstallOptions(argv);
+    return await executeInstall(parsed, {
+      argv,
+      probe: opts.probe,
+      prompt: opts.prompt,
+      interactive: opts.interactive
+    });
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : String(e));
+    return 1;
+  }
+}
+async function executeInstall(options, setup = { argv: [] }) {
+  const { client, offline, noLogin, force, cliPathExplicit } = options;
+  const pluginSrc = options.pluginSrc;
+  if (pluginSrc && !existsSync2(pluginSrc)) {
+    throw new Error(`--plugin-src not found: ${pluginSrc}`);
+  }
+  if (client === "cursor" && !pluginSrc) {
+    throw new Error("--plugin-src is required to copy the Cursor plugin (clone yaaif/cursor-plugin first)");
+  }
+  if (client === "cursor" && pluginSrc) {
+    assertCursorPluginSrc(pluginSrc);
+  }
+  if (pluginSrc && (client === "claude" || client === "codex")) {
+    assertMcpPluginSrc(client, pluginSrc);
+  }
+  const useAbsolute = offline || client === "cursor";
+  let cliPath = options.cliPath;
+  let nodePath = options.nodePath;
+  if (useAbsolute) {
+    cliPath = cliPath ?? defaultCliJsPath();
+    assertStableCliPath(cliPath, cliPathExplicit);
+    nodePath = nodePath ?? process.execPath;
+  }
+  const launch = buildMcpServerEntry({
+    client,
+    offline: useAbsolute,
+    nodePath,
+    cliPath
+  });
+  let pluginDest;
+  let mcpJsonPath;
+  if (client === "cursor" && pluginSrc) {
+    pluginDest = options.cursorDest ?? cursorPluginDest();
+    const srcVersion = readPluginVersion(pluginSrc);
+    const destVersion = readPluginVersion(pluginDest);
+    const skipCopy = !force && pluginDestHealthy(pluginDest) && destVersion && compareDottedVersion(destVersion, srcVersion) > 0;
+    if (skipCopy) {
+      console.error(
+        `install: dest ${pluginDest} is ${destVersion} (newer than package ${srcVersion}); skipping copy (pass --force to overwrite)`
+      );
+      await writeMcpJson(join8(pluginDest, "mcp.json"), launch);
+    } else {
+      const staging = await stageCursorPlugin(pluginSrc, pluginDest);
+      await writeMcpJson(join8(staging, "mcp.json"), launch);
+      await swapStagedPlugin(staging, pluginDest);
+    }
+    mcpJsonPath = join8(pluginDest, "mcp.json");
+  } else if (pluginSrc && (client === "claude" || client === "codex")) {
+    mcpJsonPath = resolveMcpJsonPath(client, pluginSrc);
+    await writeMcpJson(mcpJsonPath, launch);
+  }
+  const code = await runInstallerSetup("all", {
+    argv: setup.argv,
+    probe: setup.probe,
+    noLogin,
+    prompt: setup.prompt,
+    interactive: setup.interactive
+  });
+  if (code !== 0) return code;
+  const health = await verifyInstall({ client, cursorDest: pluginDest, mcpJsonPath });
+  const failed = health.filter((c) => !c.ok);
+  if (failed.length) {
+    throw new Error(
+      `install verify failed: ${failed.map((f) => f.name).join(", ")} (${JSON.stringify(failed.map((f) => f.detail))})`
+    );
+  }
+  console.log(nextSteps({ client, pluginDest, pluginSrc }));
+  return 0;
+}
+function flagValue2(argv, name) {
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === name) {
+      const v = (argv[i + 1] ?? "").trim();
+      return v && !v.startsWith("-") ? v : void 0;
+    }
+    if (arg.startsWith(`${name}=`)) {
+      return arg.slice(name.length + 1).trim() || void 0;
+    }
+  }
+  return void 0;
 }
 
 // src/tools/helpers.ts
@@ -26073,73 +26680,6 @@ async function ensureDevSession(ctx, opts = {}) {
   };
 }
 
-// src/lib/installerUpdate.ts
-import { readFile as readFile5 } from "node:fs/promises";
-import { join as join8 } from "node:path";
-function parseDots(v) {
-  return v.split(/[.-]/).filter((p) => /^\d+$/.test(p)).map((p) => Number(p));
-}
-function compareDottedVersion(a, b) {
-  const pa = parseDots(a);
-  const pb = parseDots(b);
-  const n = Math.max(pa.length, pb.length);
-  for (let i = 0; i < n; i += 1) {
-    const da = pa[i] ?? 0;
-    const db = pb[i] ?? 0;
-    if (da < db) return -1;
-    if (da > db) return 1;
-  }
-  return 0;
-}
-async function checkInstallerUpdate(stateHome, fetchFn = fetch) {
-  const manifestPath = join8(stateHome, "install-manifest.json");
-  let installed = "";
-  try {
-    const raw = JSON.parse(await readFile5(manifestPath, "utf8"));
-    installed = String(raw.plugin_version || "");
-  } catch {
-    return {
-      ok: true,
-      detail: { skipped: "no_local_installer_manifest", hint: "Marketplace or manual copy (no installer manifest)." }
-    };
-  }
-  if (!installed) {
-    return { ok: true, detail: { skipped: "empty_plugin_version", path: manifestPath } };
-  }
-  try {
-    const ac = new AbortController();
-    const t = setTimeout(() => ac.abort(), 4e3);
-    const res = await fetchFn("https://api.github.com/repos/yaaif/cursor-plugin/releases/latest", {
-      headers: { Accept: "application/vnd.github+json", "User-Agent": "yaaif-cursor-plugin-doctor" },
-      signal: ac.signal
-    });
-    clearTimeout(t);
-    if (!res.ok) {
-      return { ok: true, detail: { skipped: "github_http", status: res.status, installed } };
-    }
-    const body = await res.json();
-    const latest = String(body.tag_name || "").replace(/^v/i, "");
-    if (!latest) {
-      return { ok: true, detail: { skipped: "no_tag", installed } };
-    }
-    const cmp = compareDottedVersion(installed, latest);
-    if (cmp < 0) {
-      return {
-        ok: false,
-        detail: {
-          installed,
-          latest,
-          hint: `A newer installer is on GitHub (${latest}). Download from https://github.com/yaaif/cursor-plugin/releases then reload Cursor.`,
-          url: body.html_url || "https://github.com/yaaif/cursor-plugin/releases"
-        }
-      };
-    }
-    return { ok: true, detail: { installed, latest, current: true } };
-  } catch (e) {
-    return { ok: true, detail: { skipped: "github_unreachable", installed, error: String(e).slice(0, 180) } };
-  }
-}
-
 // src/tools/registerDoctor.ts
 function tlsHint(err, tls2 = getTlsResolveInfo()) {
   const msg = String(err);
@@ -26404,11 +26944,11 @@ function registerDoctorTools(server, ctx) {
         void ctx.telemetry.increment(routeOk ? "doctor_ops_telemetry_ok" : "doctor_ops_telemetry_fail");
       }
     }
-    try {
-      const upd = await checkInstallerUpdate(ctx.cfg.stateHome);
-      add("installer_update", upd.ok, upd.detail);
-    } catch (e) {
-      add("installer_update", true, { skipped: "error", error: String(e).slice(0, 180) });
+    for (const health of collectInstallHealth({
+      client: ctx.cfg.client.id,
+      cursorDest: ctx.cfg.client.id === "cursor" ? cursorPluginDest() : void 0
+    })) {
+      add(health.name, health.ok, health.detail);
     }
     const failed = checks.filter((c) => !c.ok);
     const summary = failed.length ? `Doctor found ${failed.length} issue(s): ${failed.map((f) => f.name).join(", ")}` : "Doctor checks passed.";
@@ -28263,7 +28803,7 @@ function isK8s(method) {
 }
 
 // src/tools/register.ts
-import { cpSync, existsSync as existsSync2, mkdtempSync, rmSync } from "node:fs";
+import { cpSync, existsSync as existsSync3, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join as join9 } from "node:path";
 import { execFileSync as execFileSync3 } from "node:child_process";
@@ -28852,7 +29392,7 @@ function registerMcp(server, ctx) {
       const workspace = args.workspace_root || process.cwd();
       const parent = args.target_dir ? args.target_dir.startsWith("/") ? args.target_dir : join9(workspace, args.target_dir) : join9(workspace, "mcp-servers");
       const dest = join9(parent, `${name}-mcp-service`);
-      if (existsSync2(dest)) return fail(`destination already exists: ${dest}`);
+      if (existsSync3(dest)) return fail(`destination already exists: ${dest}`);
       const repo = lang === "python" ? "https://github.com/yaaif/mcp-server-templates-py.git" : "https://github.com/yaaif/mcp-server-templates-go.git";
       const tmp = mkdtempSync(join9(tmpdir(), "yaaif-mcp-scaffold-"));
       try {
@@ -28863,7 +29403,7 @@ function registerMcp(server, ctx) {
         });
         rmSync(join9(dest, ".git"), { recursive: true, force: true });
         const renameScript = join9(dest, "scripts", "rename-service.sh");
-        if (existsSync2(renameScript)) {
+        if (existsSync3(renameScript)) {
           try {
             execFileSync3("bash", [renameScript, name], { cwd: dest, stdio: "inherit" });
           } catch {
@@ -29035,6 +29575,10 @@ function registerMcp(server, ctx) {
 // src/cli.ts
 async function main() {
   const argv = process.argv.slice(2);
+  if (parseInstallAction(argv)) {
+    const code = await runInstall({ argv });
+    process.exit(code);
+  }
   const setup = parseSetupAction(argv);
   if (setup) {
     const code = await runInstallerSetup(setup, { argv });

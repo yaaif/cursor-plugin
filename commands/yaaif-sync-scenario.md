@@ -10,9 +10,9 @@ Resolve `spec_id` from the prompt, or `yaaif_agent_spec_list` / the last
 selected scenario.
 
 - **Apply** (default; after editing `workflow_design` or slot names on the spec):
-  `yaaif_agent_spec_sync_to_objects`
+  `yaaif_agent_spec_sync_preview` `to_objects`, then `yaaif_agent_spec_sync_apply`.
 - **Adopt** (explicit; overwrites Scenario-owned names/graphs from live objects):
-  `yaaif_agent_spec_sync_from_objects`
+  `yaaif_agent_spec_sync_preview` `from_objects`, then `yaaif_agent_spec_sync_apply`.
 
-Preview, then apply. Finish with `yaaif_agent_spec_coverage`. Stay in Cursor;
-do not open Admin UI URLs.
+Preview, then apply. Finish with `yaaif_agent_spec_readiness` and
+`yaaif_agent_spec_coverage`. Stay in Cursor; do not open Admin UI URLs.
