@@ -23488,7 +23488,7 @@ import { constants as fsConstants3 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import { dirname, join as join8, relative, resolve } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-var MCP_PACKAGE_PIN = "@yaaif/platform-mcp@1.3.2";
+var MCP_PACKAGE_PIN = "@yaaif/platform-mcp@1.3.3";
 var CURSOR_MCP_ENV = {
   YAAIF_PLATFORM_PROFILE: "${YAAIF_PLATFORM_PROFILE}",
   YAAIF_OIDC_AUTHORITY: "${YAAIF_OIDC_AUTHORITY}",
