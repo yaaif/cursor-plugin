@@ -6,12 +6,15 @@ on:
   pull_request:
 
 jobs:
-  installer:
+  plugin:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Smoke install.sh (offline)
-        run: ./installer/scripts/smoke-install.sh
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Command inventory and preview/apply contract
+        run: python3 scripts/check-plugin.py
 
   mcp:
     runs-on: ubuntu-latest
