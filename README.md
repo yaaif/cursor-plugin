@@ -13,16 +13,15 @@ Official Cursor plugin for **customers and partner developers** to build on [YAA
 **Repository:** https://github.com/yaaif/cursor-plugin  
 **Marketplace name:** `yaaif`
 
-This repo is also consumed by [yaaif-platform](https://github.com/yaaif/yaaif-platform) as a git submodule at `integrations/cursor-plugin`.
-
 ## Install
 
 Requires **Node.js ≥ 20** and Git. Native `.pkg` / `.msi` / `.deb` packages are
 no longer published.
 
 ```bash
+cd ~
 git clone https://github.com/yaaif/cursor-plugin.git
-npx -y @yaaif/platform-mcp@1.3.1 --install --client cursor --plugin-src ./cursor-plugin
+npx -y @yaaif/platform-mcp@1.3.2 --install --client cursor --plugin-src ./cursor-plugin
 ```
 
 The installer asks you to choose hosted `https://platform.yaaif.ai` or another
@@ -32,7 +31,7 @@ Then in Cursor: **Plugins → + Add → Add local plugin** → select
 `~/.cursor/plugins/local/yaaif`. Reload the window and run `/yaaif-login` then
 `/yaaif-doctor`.
 
-Air-gap: `npm install -g ./yaaif-platform-mcp-1.3.1.tgz` then
+Air-gap: `npm install -g ./yaaif-platform-mcp-1.3.2.tgz` then
 `yaaif-platform-mcp --install --client cursor --plugin-src ./cursor-plugin --offline`.
 
 `--setup detect|profile|login|whoami|all` remains available after install.
@@ -64,7 +63,7 @@ export YAAIF_DEFAULT_TENANT_ID=<tenant-uuid>   # optional
 
 Prefer **`yaaif_platform_use`** + **`yaaif_ensure_session`** over hand-editing every URL.
 
-Your YAA\F operator must enable the public Keycloak client `yaaif-cursor` (see platform script `scripts/keycloak/ensure-yaaif-cursor-client.sh`).
+Your YAA\F operator must enable the public Keycloak client `yaaif-cursor` (PKCE, no client secret).
 
 ### Local Traefik (`platform.yaaif.local`)
 
@@ -86,8 +85,9 @@ Do not point OIDC at `.local` if Keycloak’s hostname is `.com` — that breaks
 symlinks/junctions for logos + plugin discovery).
 
 ```bash
+cd ~
 git clone https://github.com/yaaif/cursor-plugin.git
-npx -y @yaaif/platform-mcp@1.3.1 --install --client cursor --plugin-src ./cursor-plugin --no-login
+npx -y @yaaif/platform-mcp@1.3.2 --install --client cursor --plugin-src ./cursor-plugin --no-login
 ```
 
 Then **Plugins → + Add → Add local plugin** → `~/.cursor/plugins/local/yaaif`.
@@ -104,14 +104,14 @@ For local platform stacks, see [configure-environment.md](docs/configure-environ
 2. **Developer: Reload Window**
 3. Run `/yaaif-doctor`
 
-Marketplace PCs only receive a new version after that release is **published** to the Cursor marketplace. Local monorepo or git changes do not auto-reach them.
+Marketplace PCs only receive a new version after that release is **published** to the Cursor marketplace. Local git changes in this repo do not auto-reach them.
 
 ### Local plugin install
 
 ```bash
 cd /path/to/cursor-plugin
 git pull
-npx -y @yaaif/platform-mcp@1.3.1 --install --client cursor --plugin-src . --no-login
+npx -y @yaaif/platform-mcp@1.3.2 --install --client cursor --plugin-src . --no-login
 ```
 
 Then **Developer: Reload Window** and run `/yaaif-doctor`. Profiles under
@@ -131,13 +131,13 @@ Then **Developer: Reload Window** and run `/yaaif-doctor`. Profiles under
 MCP bridge is TypeScript (`packages/mcp`), launched via:
 
 ```json
-{ "command": "npx", "args": ["-y", "@yaaif/platform-mcp@1.3.1", "--client", "cursor"] }
+{ "command": "npx", "args": ["-y", "@yaaif/platform-mcp@1.3.2", "--client", "cursor"] }
 ```
 
 After npm publish:
 
 ```bash
-npx -y @yaaif/platform-mcp@1.3.1 --client cursor
+npx -y @yaaif/platform-mcp@1.3.2 --client cursor
 ```
 
 Requires **Node.js ≥ 20**. No Go toolchain.
