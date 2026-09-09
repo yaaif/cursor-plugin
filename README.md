@@ -183,6 +183,7 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 | `yaaif_ambient_agent_list` / `yaaif_ambient_agent_get` / `yaaif_ambient_workflow_list` / `yaaif_ambient_workflow_get` / `yaaif_ambient_runs_list` | Ambient |
 | `yaaif_approval_strategies_list` / `yaaif_approval_strategy_create` / `yaaif_approval_strategy_publish` | HITL strategies |
 | `yaaif_desktop_workers_list` / `yaaif_desktop_skill_mapping_set` | Desktop workers + skill maps |
+| `yaaif_roles_list` / `yaaif_user_list` / `yaaif_user_get` / `yaaif_user_role_set` | Tenant users + role change (`users:write`; ADMIN grant needs `confirm_admin_grant`) |
 
 ## Docs
 

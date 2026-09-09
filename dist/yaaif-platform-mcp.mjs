@@ -23937,6 +23937,37 @@ function fail(message, data) {
   };
 }
 
+// src/lib/catalogLimits.ts
+var CATALOG_LIST_LIMIT_MAX = 200;
+var MCP_TOOLS_PAGE_LIMIT = CATALOG_LIST_LIMIT_MAX;
+var MCP_TOOLS_MAX_PAGES = 50;
+function clampCatalogLimit(limit, fallback) {
+  const base = typeof limit === "number" && Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : fallback;
+  const safeFallback = Math.min(Math.max(Math.floor(fallback) || 1, 1), CATALOG_LIST_LIMIT_MAX);
+  return Math.min(Math.max(base, 1), CATALOG_LIST_LIMIT_MAX) || safeFallback;
+}
+function appendClampedLimit(params, limit) {
+  if (typeof limit !== "number" || !Number.isFinite(limit) || limit <= 0) return;
+  params.set("limit", String(clampCatalogLimit(limit, 20)));
+}
+async function listAllMcpToolNames(getJSON) {
+  const names = [];
+  let offset = 0;
+  for (let page = 0; page < MCP_TOOLS_MAX_PAGES; page++) {
+    const path2 = `/api/mcp-tools?limit=${MCP_TOOLS_PAGE_LIMIT}&offset=${offset}`;
+    const res = await getJSON(path2);
+    for (const item of res.items ?? []) {
+      const n = String(item.name ?? "").trim();
+      if (n) names.push(n);
+    }
+    if (!res.pagination?.has_more) break;
+    const next = res.pagination.next_offset ?? offset + MCP_TOOLS_PAGE_LIMIT;
+    if (next <= offset) break;
+    offset = next;
+  }
+  return names;
+}
+
 // src/lib/mergeSkillIds.ts
 function mergeSkillIds(existing, add) {
   const out = [];
@@ -24649,7 +24680,7 @@ function registerDesktopTools(server, ctx) {
   }, async ({ q, limit }) => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
-    if (limit) params.set("limit", String(limit));
+    appendClampedLimit(params, limit);
     const path2 = `/api/desktop/workers${params.size ? `?${params}` : ""}`;
     try {
       return ok("Listed desktop workers.", {
@@ -24758,7 +24789,7 @@ function registerApprovalTools(server, ctx) {
     }
   }, async ({ limit, offset }) => {
     const params = new URLSearchParams();
-    if (limit) params.set("limit", String(limit));
+    appendClampedLimit(params, limit);
     if (offset) params.set("offset", String(offset));
     const path2 = `/api/approval/strategies${params.size ? `?${params}` : ""}`;
     try {
@@ -24955,7 +24986,7 @@ function verifyPlanAgainstCatalog(expectations, buckets) {
 
 // src/tools/registerPlan.ts
 async function loadCatalogSnapshot(ctx, q, limit) {
-  const lim = limit && limit > 0 ? limit : 100;
+  const lim = clampCatalogLimit(limit, 100);
   const params = new URLSearchParams({ limit: String(lim) });
   if (q) params.set("q", q);
   const qs = `?${params}`;
@@ -25453,7 +25484,7 @@ function registerSpecTools(server, ctx) {
       const params = new URLSearchParams();
       if (args.q) params.set("q", args.q);
       if (args.status) params.set("status", args.status);
-      if (args.limit) params.set("limit", String(args.limit));
+      appendClampedLimit(params, args.limit);
       const path2 = `/api/agent-specs${params.size ? `?${params}` : ""}`;
       try {
         return ok("Listed scenarios.", {
@@ -26583,7 +26614,7 @@ function registerOpsTools(server, ctx) {
   }, async ({ status_scope, limit, offset }) => {
     const params = new URLSearchParams();
     if (status_scope) params.set("status_scope", status_scope);
-    if (limit) params.set("limit", String(limit));
+    appendClampedLimit(params, limit);
     if (offset) params.set("offset", String(offset));
     const path2 = `/api/approval/inbox/tasks${params.size ? `?${params}` : ""}`;
     try {
@@ -27103,7 +27134,7 @@ function registerLocalTools(server, ctx) {
     const params = new URLSearchParams();
     if (family) params.set("family", family);
     if (q) params.set("q", q);
-    if (limit && limit > 0) params.set("limit", String(limit));
+    appendClampedLimit(params, limit);
     if (offset && offset >= 0) params.set("offset", String(offset));
     if (names_only) params.set("names_only", "true");
     const path2 = `/api/local-tools${params.size ? `?${params}` : ""}`;
@@ -27208,12 +27239,11 @@ function registerLocalTools(server, ctx) {
       if (!list.length) {
         return fail("No tools found \u2014 pass markdown with frontmatter or tools[].");
       }
-      const [localRes, mcpRes] = await Promise.all([
+      const [localRes, mcpNames] = await Promise.all([
         ctx.api.agentJSON("GET", "/api/local-tools?names_only=true"),
-        ctx.api.agentJSON("GET", "/api/mcp-tools?limit=500")
+        listAllMcpToolNames((path2) => ctx.api.agentJSON("GET", path2))
       ]);
       const localNames = Array.isArray(localRes.names) ? localRes.names : (localRes.items ?? []).map((i) => String(i.name ?? "")).filter(Boolean);
-      const mcpNames = (mcpRes.items ?? []).map((i) => String(i.name ?? "").trim()).filter(Boolean);
       const result = verifyToolsAgainstCatalogs(list, localNames, mcpNames);
       void ctx.telemetry.increment(result.ok ? "skill_tools_check_ok" : "skill_tools_check_fail");
       return result.ok ? ok("All skill tools exist in local or MCP catalogs.", result) : fail(`Missing tools: ${result.missing.join(", ")}`, result);
@@ -27388,7 +27418,7 @@ function registerFileTools(server, ctx) {
     }
     const params = new URLSearchParams({ session_id: sessionId });
     if (latest_only) params.set("latest_only", "true");
-    if (limit && limit > 0) params.set("limit", String(limit));
+    appendClampedLimit(params, limit);
     try {
       const result = await ctx.api.agentJSON("GET", `/api/files?${params}`);
       return ok("Listed session files.", { result, session_id: sessionId, latest_only: Boolean(latest_only) });
@@ -28795,7 +28825,7 @@ function registerMcpDeploymentTools(server, ctx) {
   }, async ({ q, limit }) => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
-    if (limit) params.set("limit", String(limit));
+    appendClampedLimit(params, limit);
     const path2 = `/api/mcp-deployments${params.size ? `?${params}` : ""}`;
     try {
       return ok("Listed MCP deployments.", { result: await ctx.api.apiJSON("GET", path2) });
@@ -28806,6 +28836,117 @@ function registerMcpDeploymentTools(server, ctx) {
 }
 function isK8s(method) {
   return (method || "").trim() === "kubernetes_gitops";
+}
+
+// src/tools/registerUsers.ts
+function normalizeRole(value) {
+  return value.trim().toUpperCase();
+}
+async function resolveTenantUser(ctx, user_id, email2) {
+  const id = (user_id ?? "").trim();
+  if (id) {
+    return ctx.api.apiJSON("GET", `/api/users/${encodeURIComponent(id)}`);
+  }
+  const wantEmail = (email2 ?? "").trim().toLowerCase();
+  if (!wantEmail) {
+    throw new Error("user_id or email is required");
+  }
+  const params = new URLSearchParams({ q: wantEmail });
+  appendClampedLimit(params, 20);
+  const page = await ctx.api.apiJSON("GET", `/api/users?${params}`);
+  const match = (page.items ?? []).find((item) => String(item.email ?? "").trim().toLowerCase() === wantEmail);
+  if (!match?.id) {
+    throw new Error(`user not found: ${wantEmail}`);
+  }
+  return match;
+}
+function registerUserTools(server, ctx) {
+  server.registerTool("yaaif_roles_list", {
+    description: "List tenant RBAC role names (ADMIN, EDITOR, DEVELOPER, VIEWER, CHAT_USER, plus custom roles). Requires users:read.",
+    inputSchema: {}
+  }, async () => {
+    try {
+      return ok("Listed roles.", { result: await ctx.api.apiJSON("GET", "/api/roles") });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_user_list", {
+    description: "List tenant users (name, email, role, active). Requires users:read. Admins use this before yaaif_user_role_set.",
+    inputSchema: {
+      q: external_exports.string().optional(),
+      limit: external_exports.number().optional(),
+      active: external_exports.boolean().optional()
+    }
+  }, async ({ q, limit, active }) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    appendClampedLimit(params, limit);
+    if (typeof active === "boolean") params.set("active", String(active));
+    const path2 = `/api/users${params.size ? `?${params}` : ""}`;
+    try {
+      return ok("Listed users.", { result: await ctx.api.apiJSON("GET", path2) });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_user_get", {
+    description: "Get one tenant user by id or email. Requires users:read.",
+    inputSchema: {
+      user_id: external_exports.string().optional(),
+      email: external_exports.string().optional()
+    }
+  }, async ({ user_id, email: email2 }) => {
+    try {
+      const user = await resolveTenantUser(ctx, user_id, email2);
+      return ok("Fetched user.", { user });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_user_role_set", {
+    description: "Change a tenant user's platform role (ADMIN, EDITOR, DEVELOPER, VIEWER, CHAT_USER, or a custom role from yaaif_roles_list). Requires users:write. Granting ADMIN additionally requires the caller to be ADMIN and confirm_admin_grant=true.",
+    inputSchema: {
+      user_id: external_exports.string().optional(),
+      email: external_exports.string().optional(),
+      role: external_exports.string(),
+      confirm_admin_grant: external_exports.boolean().optional()
+    }
+  }, async ({ user_id, email: email2, role, confirm_admin_grant }) => {
+    const targetRole = normalizeRole(role);
+    if (!targetRole) {
+      return fail("role is required");
+    }
+    if (targetRole === "ADMIN" && !confirm_admin_grant) {
+      return fail("Granting ADMIN requires confirm_admin_grant=true (caller must already be ADMIN).");
+    }
+    try {
+      let current = { id: (user_id ?? "").trim() };
+      if (current.id) {
+        try {
+          current = await resolveTenantUser(ctx, current.id, void 0);
+        } catch {
+        }
+      } else {
+        current = await resolveTenantUser(ctx, void 0, email2);
+      }
+      const id = String(current.id ?? "").trim();
+      if (!id) {
+        return fail("resolved user is missing id");
+      }
+      const previousRole = normalizeRole(String(current.role ?? ""));
+      if (previousRole === targetRole) {
+        return ok(`User already has role ${targetRole}.`, { user: current, unchanged: true });
+      }
+      const user = await ctx.api.apiJSON("PUT", `/api/users/${encodeURIComponent(id)}`, { role: targetRole });
+      return ok(`Updated role for ${user.email ?? id} from ${previousRole || "unknown"} to ${targetRole}.`, {
+        user,
+        previous_role: previousRole || null
+      });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
 }
 
 // src/tools/register.ts
@@ -28820,6 +28961,7 @@ function registerAllTools(server, ctx) {
   registerMcp(server, ctx);
   registerMcpDeploymentTools(server, ctx);
   registerApiKeyTools(server, ctx);
+  registerUserTools(server, ctx);
   registerDesktopTools(server, ctx);
   registerApprovalTools(server, ctx);
   registerPlanTools(server, ctx);
@@ -28837,7 +28979,7 @@ function registerSkills(server, ctx) {
   }, async ({ q, limit }) => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
-    if (limit) params.set("limit", String(limit));
+    appendClampedLimit(params, limit);
     const path2 = `/api/skills${params.size ? `?${params}` : ""}`;
     try {
       return ok("Listed skills.", { result: await ctx.api.agentJSON("GET", path2) });
@@ -29071,7 +29213,7 @@ function registerAmbient(server, ctx) {
   }, async ({ q, agent_type, limit }) => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
-    params.set("limit", String(Math.min(Math.max(limit ?? 50, 1), 200)));
+    params.set("limit", String(clampCatalogLimit(limit, 50)));
     const path2 = `/api/agents?${params}`;
     try {
       const result = await ctx.api.agentJSON("GET", path2);
@@ -29104,7 +29246,7 @@ function registerAmbient(server, ctx) {
   }, async ({ q, limit }) => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
-    if (limit) params.set("limit", String(limit));
+    appendClampedLimit(params, limit);
     const path2 = `/api/ambient/agents${params.size ? `?${params}` : ""}`;
     try {
       return ok("Listed ambient agents.", { result: await ctx.api.agentJSON("GET", path2) });
@@ -29358,7 +29500,7 @@ function registerAmbient(server, ctx) {
     if (workflowID) params.set("ambient_workflow_id", workflowID);
     if (args.status) params.set("status", args.status);
     if (args.q) params.set("q", args.q);
-    if (args.limit) params.set("limit", String(args.limit));
+    appendClampedLimit(params, args.limit);
     const path2 = `/api/ambient/runs${params.size ? `?${params}` : ""}`;
     try {
       return ok("Listed ambient runs.", { result: await ctx.api.agentJSON("GET", path2) });
@@ -29494,7 +29636,7 @@ function registerMcp(server, ctx) {
   }, async ({ q, limit }) => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
-    if (limit) params.set("limit", String(limit));
+    appendClampedLimit(params, limit);
     const path2 = `/api/mcp-tools${params.size ? `?${params}` : ""}`;
     try {
       return ok("Listed MCP tools.", { result: await ctx.api.agentJSON("GET", path2) });
@@ -29520,7 +29662,7 @@ function registerMcp(server, ctx) {
   }, async ({ q, limit }) => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
-    if (limit) params.set("limit", String(limit));
+    appendClampedLimit(params, limit);
     const path2 = `/api/mcp-tools/servers${params.size ? `?${params}` : ""}`;
     try {
       return ok("Listed MCP servers.", { result: await ctx.api.agentJSON("GET", path2) });
@@ -29547,7 +29689,7 @@ function registerMcp(server, ctx) {
       limit: external_exports.number().optional()
     }
   }, async ({ q, limit }) => {
-    const lim = limit && limit > 0 ? limit : 50;
+    const lim = clampCatalogLimit(limit, 50);
     const params = new URLSearchParams({ limit: String(lim) });
     if (q) params.set("q", q);
     const qs = `?${params}`;
