@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `@yaaif/platform-mcp`: `yaaif_agent_spec_delete` removes an empty Scenario (no current bindings, not active, not a required release dependency).
+
 - `@yaaif/platform-mcp`: tenant user admin tools `yaaif_roles_list`, `yaaif_user_list`, `yaaif_user_get`, `yaaif_user_role_set` (ADMIN grant requires `confirm_admin_grant=true`).
 - `@yaaif/platform-mcp`: `yaaif_skill_tools_check` pages `GET /api/mcp-tools` at limit 200 (API max). List tools clamp `limit` to 1–200 so callers cannot hit the same 400.
 - `@yaaif/platform-mcp@1.3.4`: `yaaif_skill_tools_check` accepts MCP server wildcards (`sap-odata:*`) and reads `allowed-prompts` / `allowed-resources` from skill frontmatter. `--install` writes `@yaaif/platform-mcp@1.3.4`.
