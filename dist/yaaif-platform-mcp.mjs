@@ -21887,9 +21887,6 @@ async function yaaifFetch(input, init = {}) {
 function escapeHtml(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
-var CURSOR_LOGO_SVG = `<svg class="ycb-cursor-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 466.73 532.09" role="img" aria-label="Cursor">
-  <path fill="currentColor" d="M457.43,125.94L244.42,2.96c-6.84-3.95-15.28-3.95-22.12,0L9.3,125.94c-5.75,3.32-9.3,9.46-9.3,16.11v247.99c0,6.65,3.55,12.79,9.3,16.11l213.01,122.98c6.84,3.95,15.28,3.95,22.12,0l213.01-122.98c5.75-3.32,9.3-9.46,9.3-16.11v-247.99c0-6.65-3.55-12.79-9.3-16.11h-.01ZM444.05,151.99l-205.63,356.16c-1.39,2.4-5.06,1.42-5.06-1.36v-233.21c0-4.66-2.49-8.97-6.53-11.31L24.87,145.67c-2.4-1.39-1.42-5.06,1.36-5.06h411.26c5.84,0,9.49,6.33,6.57,11.39h-.01Z"/>
-</svg>`;
 var LOGO_SVG = `<svg class="ycb-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="YAA\\F">
   <defs>
     <linearGradient id="ycb-bg" x1="132" y1="96" x2="904" y2="920" gradientUnits="userSpaceOnUse">
@@ -21915,9 +21912,6 @@ var LOGO_SVG = `<svg class="ycb-logo" xmlns="http://www.w3.org/2000/svg" viewBox
 function renderLoginCallbackPage(opts) {
   const heading = escapeHtml(opts.heading);
   const message = escapeHtml(opts.message);
-  const returnTo = escapeHtml(opts.returnTo);
-  const isCursor = opts.returnTo === "Cursor";
-  const productChip = isCursor ? `<span class="ycb-product ycb-product-cursor">${CURSOR_LOGO_SVG}<span>Cursor</span></span>` : `<span class="ycb-product">${returnTo}</span>`;
   const title = opts.ok ? "YAA\\F \xB7 Signed in" : "YAA\\F \xB7 Sign-in failed";
   const badge = opts.ok ? "Signed in" : "Sign-in failed";
   const icon = opts.ok ? `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.2 12.4 2.5 2.5 5.1-5.3"/></svg>` : `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>`;
@@ -22006,7 +22000,7 @@ body {
 .ycb-brand {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: .75rem;
   margin-bottom: 1.35rem;
 }
@@ -22022,25 +22016,6 @@ body {
   font-size: 1.05rem;
   font-weight: 650;
   letter-spacing: -.02em;
-}
-.ycb-product {
-  display: inline-flex;
-  align-items: center;
-  gap: .4rem;
-  font-size: .75rem;
-  font-weight: 600;
-  letter-spacing: .02em;
-  color: var(--ycb-fg);
-  border: 1px solid var(--ycb-border);
-  border-radius: 999px;
-  padding: .28rem .65rem .28rem .5rem;
-}
-.ycb-cursor-logo {
-  width: 1.15rem;
-  height: 1.3rem;
-  display: block;
-  color: var(--ycb-fg);
-  flex: 0 0 auto;
 }
 .ycb-badge {
   display: inline-flex;
@@ -22106,15 +22081,14 @@ code {
   <main class="ycb-card">
     <div class="ycb-brand">
       <div class="ycb-brand-mark">${LOGO_SVG}<p class="ycb-wordmark">YAA\\F</p></div>
-      ${productChip}
     </div>
     <div class="ycb-badge">${icon}${escapeHtml(badge)}</div>
     <h1>${heading}</h1>
     <p class="ycb-copy">${message}</p>
     ${detail}
-    <p class="ycb-return">You can close this window and return to ${returnTo}.</p>
+    <p class="ycb-return">You can close this window and continue.</p>
     <button class="ycb-close" id="ycb-close" type="button">Close window</button>
-    <p class="ycb-fallback" id="ycb-fallback" hidden>Your browser will not close this tab. Close it to return to ${returnTo}.</p>
+    <p class="ycb-fallback" id="ycb-fallback" hidden>Your browser will not close this tab. Close it to continue.</p>
   </main>
   <script>
 (function () {
@@ -22247,8 +22221,7 @@ var AuthClient = class {
             renderLoginCallbackPage({
               ok: false,
               heading: "Sign-in could not be verified",
-              message: `The sign-in response did not match this login attempt. Start login again from ${this.cfg.client.label}.`,
-              returnTo: this.cfg.client.label
+              message: `The sign-in response did not match this login attempt. Start login again from ${this.cfg.client.label}.`
             })
           );
           clearTimeout(timer);
@@ -22262,8 +22235,7 @@ var AuthClient = class {
             renderLoginCallbackPage({
               ok: false,
               heading: "Sign-in was not completed",
-              message: `The identity provider returned ${err}.`,
-              returnTo: this.cfg.client.label
+              message: `The identity provider returned ${err}.`
             })
           );
           clearTimeout(timer);
@@ -22277,8 +22249,7 @@ var AuthClient = class {
             renderLoginCallbackPage({
               ok: false,
               heading: "Sign-in was not completed",
-              message: "The authorization code was missing from the sign-in response.",
-              returnTo: this.cfg.client.label
+              message: "The authorization code was missing from the sign-in response."
             })
           );
           clearTimeout(timer);
@@ -22291,8 +22262,7 @@ var AuthClient = class {
             ok: true,
             heading: "You're signed in",
             message: "Authentication finished successfully.",
-            detail: this.cfg.oidcAuthority,
-            returnTo: this.cfg.client.label
+            detail: this.cfg.oidcAuthority
           })
         );
         clearTimeout(timer);
@@ -25343,6 +25313,27 @@ function registerSpecTools(server, ctx) {
           slots: args.slots ?? []
         });
         return ok(`Created scenario ${args.slug}.`, { spec });
+      } catch (e) {
+        return fail(String(e));
+      }
+    }
+  );
+  server.registerTool(
+    "yaaif_agent_spec_delete",
+    {
+      description: "Delete an empty Scenario (Agent Spec). Allowed only when it has no current catalog bindings, is not active, and is not a required release dependency of another scenario.",
+      inputSchema: {
+        spec_id: external_exports.string(),
+        expected_version: expectedVersionSchema
+      }
+    },
+    async ({ spec_id, expected_version }) => {
+      try {
+        await ctx.api.agentJSON(
+          "DELETE",
+          `${specPath(spec_id)}?expected_version=${expected_version}`
+        );
+        return ok(`Deleted empty scenario ${spec_id}.`, { spec_id });
       } catch (e) {
         return fail(String(e));
       }
