@@ -33,6 +33,7 @@ These are **not** inbound MCP OAuth (`mcp:read` / `mcp:chat`), **not** platform 
 - `ambient:read` / `ambient:trigger` (partner HTTP ambient — not chat local tools)
 - `skills:read`
 - `files:read` / `files:write` / `files:share`
+- `users:read` / `users:write` (api-server user catalog; ADMIN grants and delete/invite stay blocked)
 
 Optional allowlists: `allowed_mcp_server_ids`, `allowed_context_plugins`, `allowed_workflow_ids`, `allowed_agent_ids`.
 
