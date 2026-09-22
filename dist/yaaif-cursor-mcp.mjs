@@ -22560,6 +22560,22 @@ var CLIENTS = {
     stateHomeSuffix: "cursor",
     updatedBy: "yaaif-cursor"
   },
+  vscode: {
+    id: "vscode",
+    label: "VS Code",
+    oidcClientId: "yaaif-vscode",
+    stateHomeEnv: "YAAIF_VSCODE_HOME",
+    stateHomeSuffix: "vscode",
+    updatedBy: "yaaif-vscode"
+  },
+  intellij: {
+    id: "intellij",
+    label: "IntelliJ IDEA",
+    oidcClientId: "yaaif-intellij",
+    stateHomeEnv: "YAAIF_INTELLIJ_HOME",
+    stateHomeSuffix: "intellij",
+    updatedBy: "yaaif-intellij"
+  },
   codex: {
     id: "codex",
     label: "Codex",
@@ -22586,8 +22602,8 @@ function parseBridgeClient(argv = process.argv.slice(2)) {
     if (arg === "--client") return [argv[index + 1] ?? ""];
     return [];
   }).filter(Boolean);
-  if (values.length !== 1 || values[0] !== "cursor" && values[0] !== "codex" && values[0] !== "claude") {
-    throw new Error("a single --client cursor|codex|claude argument is required");
+  if (values.length !== 1 || !["cursor", "vscode", "intellij", "codex", "claude"].includes(values[0])) {
+    throw new Error("a single --client cursor|vscode|intellij|codex|claude argument is required");
   }
   return CLIENTS[values[0]];
 }
@@ -23787,6 +23803,18 @@ function nextSteps(opts) {
       "Start a new Claude Code session, then /yaaif-platform:yaaif-login and /yaaif-platform:yaaif-doctor."
     ].join("\n");
   }
+  if (opts.client === "vscode") {
+    return [
+      "Install the YAAIF for VS Code extension, then run YAAIF: Configure MCP Bridge.",
+      "Open Copilot Chat and run the YAAIF login and doctor commands."
+    ].join("\n");
+  }
+  if (opts.client === "intellij") {
+    return [
+      "Install the YAAIF for IntelliJ plugin, then run YAAIF: Configure MCP Bridge.",
+      "Open JetBrains AI Assistant and run the YAAIF login and doctor commands."
+    ].join("\n");
+  }
   const dir = opts.pluginSrc;
   return [
     dir ? `In Codex, add ${dir} as a local marketplace (yaaif) and install yaaif-platform.` : "In Codex, add the yaaif/codex-plugin clone as a local marketplace and install yaaif-platform.",
@@ -23821,7 +23849,7 @@ async function executeInstall(options, setup = { argv: [] }) {
   if (client === "cursor" && pluginSrc) {
     assertCursorPluginSrc(pluginSrc);
   }
-  if (pluginSrc && (client === "claude" || client === "codex")) {
+  if (pluginSrc && (client === "vscode" || client === "intellij" || client === "claude" || client === "codex")) {
     assertMcpPluginSrc(client, pluginSrc);
   }
   const useAbsolute = offline || client === "cursor";
@@ -23856,7 +23884,7 @@ async function executeInstall(options, setup = { argv: [] }) {
       await swapStagedPlugin(staging, pluginDest);
     }
     mcpJsonPath = join8(pluginDest, "mcp.json");
-  } else if (pluginSrc && (client === "claude" || client === "codex")) {
+  } else if (pluginSrc && (client === "vscode" || client === "intellij" || client === "claude" || client === "codex")) {
     mcpJsonPath = resolveMcpJsonPath(client, pluginSrc);
     await writeMcpJson(mcpJsonPath, launch);
   }
@@ -28176,6 +28204,141 @@ function registerOpsSupportTools(server, ctx) {
       return fail(String(e));
     }
   });
+  const diagnosisFailureSchema = external_exports.object({
+    source: external_exports.string().optional(),
+    severity: external_exports.string().optional(),
+    code: external_exports.string().optional(),
+    title: external_exports.string().optional(),
+    summary: external_exports.string().optional(),
+    causes: external_exports.array(external_exports.string()).optional(),
+    resolutions: external_exports.array(external_exports.string()).optional()
+  });
+  server.registerTool("yaaif_ops_diagnosis_list", {
+    description: "READ-ONLY: list prior confirmed ops diagnoses for an ambient_run_id (newest first). Call before yaaif_ops_analyze so prior findings inform triage.",
+    inputSchema: {
+      ambient_run_id: external_exports.string(),
+      limit: external_exports.number().int().positive().optional(),
+      ...shapeOptsSchema
+    }
+  }, async (args) => {
+    try {
+      const path2 = `/api/ops/diagnoses${opsQuery({
+        ambient_run_id: args.ambient_run_id,
+        limit: args.limit != null ? String(args.limit) : void 0
+      })}`;
+      const result = await ctx.api.agentJSON("GET", path2);
+      return shapedOk("Listed prior ops diagnoses.", result, args);
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_ops_diagnosis_get", {
+    description: "READ-ONLY: fetch one confirmed ops diagnosis by id.",
+    inputSchema: {
+      id: external_exports.string(),
+      ...shapeOptsSchema
+    }
+  }, async (args) => {
+    try {
+      const result = await ctx.api.agentJSON(
+        "GET",
+        `/api/ops/diagnoses/${encodeURIComponent(args.id)}`
+      );
+      return shapedOk("Fetched ops diagnosis.", result, args);
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_ops_diagnosis_create", {
+    description: "Write a confirmed OpsDiagnosisRecord back to YAAIF (append-only). Requires confirm=true after presenting the full draft to the user. Does not pause/stop/approve/retry runs. Requires ops.support.write.",
+    inputSchema: {
+      confirm: external_exports.boolean().describe("Must be true after explicit user confirmation"),
+      ambient_run_id: external_exports.string(),
+      session_id: external_exports.string().optional(),
+      desktop_run_id: external_exports.string().optional(),
+      harness_run_id: external_exports.string().optional(),
+      request_ids: external_exports.array(external_exports.string()).optional(),
+      intent: external_exports.enum(["diagnose_failure", "inspect_run"]),
+      severity: external_exports.enum(["error", "warning", "info", "ok"]),
+      title: external_exports.string(),
+      summary: external_exports.string(),
+      status_session: external_exports.string().optional(),
+      status_ambient: external_exports.string().optional(),
+      status_desktop: external_exports.string().optional(),
+      status_harness: external_exports.string().optional(),
+      failures: external_exports.array(diagnosisFailureSchema),
+      next_steps: external_exports.array(external_exports.string()),
+      coverage_reached: external_exports.number().int().optional(),
+      coverage_total: external_exports.number().int().optional(),
+      path_executed: external_exports.number().int().optional(),
+      path_reached: external_exports.number().int().optional(),
+      current_step_id: external_exports.string().optional(),
+      current_step_status: external_exports.string().optional(),
+      canvas_url: external_exports.string().optional(),
+      diagnostics_version: external_exports.string(),
+      evidence_analyze: external_exports.boolean(),
+      evidence_telemetry: external_exports.array(external_exports.string()).optional(),
+      partial_errors: external_exports.record(external_exports.string(), external_exports.string()).optional(),
+      source: external_exports.enum(["cursor", "vscode", "intellij", "codex", "claude-code", "admin_ui"]),
+      ide_client: external_exports.string().optional(),
+      diagnosed_at: external_exports.string().optional().describe("RFC3339 timestamp; server may normalize")
+    }
+  }, async (args) => {
+    if (!args.confirm) {
+      return fail(
+        "Set confirm=true only after presenting the full OpsDiagnosisRecord draft to the user and receiving explicit confirmation to write it back to YAAIF."
+      );
+    }
+    try {
+      const body = {
+        ambient_run_id: args.ambient_run_id,
+        session_id: args.session_id,
+        desktop_run_id: args.desktop_run_id,
+        harness_run_id: args.harness_run_id,
+        request_ids: args.request_ids ?? [],
+        intent: args.intent,
+        severity: args.severity,
+        title: args.title,
+        summary: args.summary,
+        status_session: args.status_session ?? "",
+        status_ambient: args.status_ambient ?? "",
+        status_desktop: args.status_desktop ?? "",
+        status_harness: args.status_harness ?? "",
+        failures: (args.failures ?? []).map((failure) => ({
+          source: failure.source ?? "",
+          severity: failure.severity ?? "",
+          code: failure.code ?? "",
+          title: failure.title ?? "",
+          summary: failure.summary ?? "",
+          causes: failure.causes ?? [],
+          resolutions: failure.resolutions ?? []
+        })),
+        next_steps: args.next_steps ?? [],
+        coverage_reached: args.coverage_reached ?? 0,
+        coverage_total: args.coverage_total ?? 0,
+        path_executed: args.path_executed ?? 0,
+        path_reached: args.path_reached ?? 0,
+        current_step_id: args.current_step_id ?? "",
+        current_step_status: args.current_step_status ?? "",
+        canvas_url: args.canvas_url ?? "",
+        diagnostics_version: args.diagnostics_version,
+        evidence_analyze: args.evidence_analyze,
+        evidence_telemetry: args.evidence_telemetry ?? [],
+        partial_errors: args.partial_errors ?? {},
+        source: args.source,
+        ide_client: args.ide_client ?? ""
+      };
+      if (args.diagnosed_at?.trim()) {
+        body.diagnosed_at = args.diagnosed_at.trim();
+      }
+      const result = await ctx.api.agentJSON("POST", "/api/ops/diagnoses", body);
+      void ctx.telemetry.increment("ops_diagnosis_create_ok");
+      return ok("Persisted ops diagnosis to YAAIF.", { diagnosis: result });
+    } catch (e) {
+      void ctx.telemetry.increment("ops_diagnosis_create_fail");
+      return fail(String(e));
+    }
+  });
 }
 
 // src/lib/mcpDeployments.ts
@@ -28891,6 +29054,47 @@ function registerUserTools(server, ctx) {
     try {
       const user = await resolveTenantUser(ctx, user_id, email2);
       return ok("Fetched user.", { user });
+    } catch (e) {
+      return fail(String(e));
+    }
+  });
+  server.registerTool("yaaif_user_create", {
+    description: "Create a Keycloak email/password user, generate a one-time password that must be reset on first login, then save the YAAIF tenant user. Returns temporary_password once. Requires users:write. Granting ADMIN additionally requires the caller to be ADMIN and confirm_admin_grant=true. Downstream systems can call the same POST /api/users contract with a ymp- key scoped to users:write.",
+    inputSchema: {
+      name: external_exports.string(),
+      email: external_exports.string(),
+      role: external_exports.string().optional(),
+      active: external_exports.boolean().optional(),
+      confirm_admin_grant: external_exports.boolean().optional()
+    }
+  }, async ({ name, email: email2, role, active, confirm_admin_grant }) => {
+    const displayName = name.trim();
+    const normalizedEmail = email2.trim().toLowerCase();
+    const targetRole = normalizeRole(role ?? "VIEWER") || "VIEWER";
+    if (!displayName) {
+      return fail("name is required");
+    }
+    if (!normalizedEmail) {
+      return fail("email is required");
+    }
+    if (targetRole === "ADMIN" && !confirm_admin_grant) {
+      return fail("Granting ADMIN requires confirm_admin_grant=true (caller must already be ADMIN).");
+    }
+    try {
+      const user = await ctx.api.apiJSON("POST", "/api/users", {
+        name: displayName,
+        email: normalizedEmail,
+        role: targetRole,
+        active: active ?? true
+      });
+      return ok(
+        `Created ${user.email ?? normalizedEmail}. Share temporary_password once; Keycloak requires a reset on first login.`,
+        {
+          user,
+          temporary_password: user.temporary_password,
+          password_must_reset: user.password_must_reset ?? true
+        }
+      );
     } catch (e) {
       return fail(String(e));
     }

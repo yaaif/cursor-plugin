@@ -153,7 +153,7 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 | `yaaif-create-skill` / `/yaaif-new-skill` | Author + load skill (prefers platform local lifecycle tools) |
 | `yaaif-platform-tools` / `/yaaif-platform-tools` | Discover/call agent-service built-in local tools |
 | `yaaif-ops-support` / `/yaaif-ops` | Read-only incident triage (session/ambient/desktop) |
-| `yaaif-create-mcp` / `/yaaif-new-mcp` | Scaffold + deploy MCP (compose or k8s GitOps) + API key bind |
+| `yaaif-create-mcp` / `/yaaif-new-mcp` | Scaffold + deploy HTTP MCP, or publish command/stdio MCP to the desktop Package Registry |
 | `yaaif-create-ambient` / `/yaaif-new-workflow` | Ambient workflows |
 
 ### Read / browse tools
@@ -183,6 +183,8 @@ Requires **Node.js ≥ 20**. No Go toolchain.
 | `yaaif_ambient_agent_list` / `yaaif_ambient_agent_get` / `yaaif_ambient_workflow_list` / `yaaif_ambient_workflow_get` / `yaaif_ambient_runs_list` | Ambient |
 | `yaaif_approval_strategies_list` / `yaaif_approval_strategy_create` / `yaaif_approval_strategy_publish` | HITL strategies |
 | `yaaif_desktop_workers_list` / `yaaif_desktop_skill_mapping_set` | Desktop workers + skill maps |
+| `yaaif_desktop_tool_packages_list` / `yaaif_desktop_tool_package_inspect` / `yaaif_desktop_tool_package_publish` / `yaaif_desktop_tool_package_update` / `yaaif_desktop_tool_package_delete` | Command/stdio MCP Package Registry (add/update/remove catalog entry from a local codebase) |
+| `yaaif_desktop_tool_package_install` / `yaaif_desktop_tool_package_upgrade` / `yaaif_desktop_tool_package_uninstall` / `yaaif_desktop_tool_package_worker_status` | Install, upgrade, or remove a package on desktop worker(s) |
 | `yaaif_roles_list` / `yaaif_user_list` / `yaaif_user_get` / `yaaif_user_create` / `yaaif_user_role_set` | Tenant users + create/role change (`users:write`; ADMIN grant needs `confirm_admin_grant`) |
 
 ## Docs
