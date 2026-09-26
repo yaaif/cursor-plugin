@@ -20,7 +20,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@yaaif/platform-mcp": "^1.3.2"
+    "@yaaif/platform-mcp": "^1.3.5"
   },
   "publishConfig": {
     "access": "public"
