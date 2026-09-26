@@ -52,11 +52,13 @@ Skill: `yaaif-platform-tools` / command `/yaaif-platform-tools`.
 With an authenticated session and agent-service that has `/api/local-tools`:
 
 ```bash
-cd packages/mcp
-npm run generate:local-tools-ref
+# platform-mcp cloned beside this repo
+cd ../platform-mcp
+YAAIF_LOCAL_TOOLS_OUT=../cursor-plugin/skills/yaaif-platform-tools/references/local-tools.generated.md \
+  npm run generate:local-tools-ref
 ```
 
-Writes `skills/yaaif-platform-tools/references/local-tools.generated.md`.
+Writes `skills/yaaif-platform-tools/references/local-tools.generated.md` in this plugin. The generator lives in [yaaif/platform-mcp](https://github.com/yaaif/platform-mcp).
 
 ## Deploy note
 

@@ -21,20 +21,12 @@ npx -y @yaaif/platform-mcp@1.3.4 --install --client cursor --plugin-src ./cursor
    npm whoami
    ```
 
-2. From this repo:
+2. Publish the shared bridge from [yaaif/platform-mcp](https://github.com/yaaif/platform-mcp) (`npm test`, `npm run build`, `npm publish --access public`). Package version is in that repo’s `package.json`.
+
+   Then publish the compatibility wrapper from this repo:
 
    ```bash
-   cd packages/mcp
-   npm test
-   npm run build
-   npm publish --access public
-   ```
-
-   Package version is in `packages/mcp/package.json`. Publish the shared bridge
-   first, then publish the compatibility wrapper:
-
-   ```bash
-   cd ../cursor-mcp
+   cd packages/cursor-mcp
    npm publish --access public
    ```
 

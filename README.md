@@ -128,7 +128,7 @@ Then **Developer: Reload Window** and run `/yaaif-doctor`. Profiles under
 
 ## Runtime
 
-MCP bridge is TypeScript (`packages/mcp`), launched via:
+The MCP bridge is [`@yaaif/platform-mcp`](https://github.com/yaaif/platform-mcp), launched via:
 
 ```json
 { "command": "npx", "args": ["-y", "@yaaif/platform-mcp@1.3.3", "--client", "cursor"] }

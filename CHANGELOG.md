@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- MCP bridge source now lives in [yaaif/platform-mcp](https://github.com/yaaif/platform-mcp). This repo keeps the Cursor marketplace plugin and the `@yaaif/cursor-mcp` compatibility launcher.
 - `@yaaif/platform-mcp`: command/stdio MCP Package Registry tools — inspect a local codebase, then add/update/remove (`yaaif_desktop_tool_package_publish` / `_update` / `_delete`) and worker install/upgrade/uninstall (`yaaif_desktop_tool_package_install` / `_upgrade` / `_uninstall` / `_worker_status`). HTTP MCP still uses `yaaif_mcp_deployment_*`.
 - `@yaaif/platform-mcp`: login callback page is host-app generic (no Cursor / Claude Code / Codex chip or “return to …” copy).
 - `@yaaif/platform-mcp`: `yaaif_agent_spec_delete` removes an empty Scenario (no current bindings, not active, not a required release dependency).

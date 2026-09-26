@@ -16,7 +16,7 @@
 This Cursor plugin ships:
 
 - Markdown skills, rules, commands, and docs
-- A local **stdio** MCP bridge (`packages/mcp`, published as `@yaaif/platform-mcp`) that authenticates to a customer-configured YAA\F environment
+- A `.mcp.json` declaration that launches the shared stdio bridge `npx @yaaif/platform-mcp --client cursor` (source: [yaaif/platform-mcp](https://github.com/yaaif/platform-mcp)), which authenticates to a customer-configured YAA\F environment
 - A Node CLI (`--install` / `--setup`) that copies plugin files and writes `mcp.json`
 
 It does **not** ship custom/opaque runtimes, native OS packages, remote `curl | bash` installers, or embedded credentials. Installs require Node.js ≥ 20 on `PATH`.
@@ -47,7 +47,7 @@ Email **security@yaaif.com** (or your BeezLabs security contact) with reproducti
 ## Marketplace review notes
 
 - Runtime is Node executing `npx @yaaif/platform-mcp@<version> --client cursor` (or `--offline` absolute `node` + `cli.js`)
-- Source under `packages/mcp/src/` can be cross-checked against the published package
+- Source in [yaaif/platform-mcp](https://github.com/yaaif/platform-mcp) can be cross-checked against the published `@yaaif/platform-mcp` package
 - Plugin variables hold environment URLs only; no secrets are required in the plugin repo
 - `--install` does not modify Cursor’s undocumented plugin registry; first install still needs **Add local plugin**
 - `~/.yaaif/cursor/session.json` and profiles are left in place on update
