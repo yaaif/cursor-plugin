@@ -19,6 +19,7 @@ EXPECTED_SKILLS = (
     "yaaif-ops-support",
     "yaaif-plan-usecase",
     "yaaif-platform-tools",
+    "yaaif-requirements",
     "yaaif-scenario",
 )
 
@@ -31,6 +32,7 @@ EXPECTED_COMMANDS = (
     "yaaif-ops",
     "yaaif-plan",
     "yaaif-platform-tools",
+    "yaaif-requirements",
     "yaaif-scenario",
     "yaaif-sync-scenario",
 )
