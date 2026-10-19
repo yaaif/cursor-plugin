@@ -1,7 +1,7 @@
 {
   "name": "yaaif",
-  "description": "Authenticate to YAA\\F, plan use cases, create and maintain scenarios (Agent Specs), and create skills, MCP deployments, desktop command MCP packages, and ambient workflows from Cursor.",
-  "version": "1.3.2",
+  "description": "Authenticate to YAA\\F, plan use cases, create and maintain scenarios (Agent Specs), and create skills, MCP deployments, desktop command MCP packages, and ambient workflows from Cursor; manage tenant governance through confirmed policy proposals.",
+  "version": "1.3.3",
   "author": {
     "name": "YAA\\F / BeezLabs",
     "email": "support@yaaif.com"

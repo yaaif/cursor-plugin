@@ -8,9 +8,10 @@ import json
 import sys
 from pathlib import Path
 
-PLUGIN_VERSION = "1.3.2"
+PLUGIN_VERSION = "1.3.3"
 
 EXPECTED_SKILLS = (
+    "yaaif-governance",
     "yaaif-auth",
     "yaaif-create-ambient",
     "yaaif-create-mcp",
@@ -26,6 +27,7 @@ EXPECTED_SKILLS = (
 )
 
 EXPECTED_COMMANDS = (
+    "yaaif-governance",
     "yaaif-doctor",
     "yaaif-kg-enhance",
     "yaaif-kg-skill-plan",
